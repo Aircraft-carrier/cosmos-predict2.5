@@ -86,9 +86,10 @@ def override(config: Config, overrides: Optional[list[str]] = None) -> Config:
             )
         overrides = overrides[1:]
     # Use Hydra to handle overrides
+    # * overrides里就包含了experiment=xxx --> hydra会根据这个去加载配置(在compose函数中)，就是从预先加载好的配置中根据experiment的值选择当前实验具体用哪个配置
     cs = ConfigStore.instance()
     cs.store(name="config", node=config_omegaconf)
-    if not GlobalHydra().is_initialized():
+    if not GlobalHydra().is_initialized():      # 走这条
         with initialize(version_base=None):
             config_omegaconf = compose(config_name="config", overrides=overrides)
             OmegaConf.resolve(config_omegaconf)
@@ -201,6 +202,7 @@ def import_all_modules_from_package(package_path: str, reload: bool = False, ski
                 log.debug(f"Skipping module {module_name} as it starts with an underscore")
                 continue
 
+            # cosmos_predict2.experiments.base.cosmos_nemo_assets/groot -> is_pkg=False
             full_module_name = f"{prefix}.{module_name}"
             log.debug(f"{'Reloading' if reload else 'Importing'} module {full_module_name}")
 

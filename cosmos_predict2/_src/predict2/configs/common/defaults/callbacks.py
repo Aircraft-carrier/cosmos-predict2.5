@@ -55,13 +55,13 @@ WANDB_CALLBACK = dict(
     wandb=L(WandbCallback)(
         save_s3="${upload_reproducible_setup}",
         logging_iter_multipler=1,
-        save_logging_iter_multipler=10,
+        save_logging_iter_multipler=10,     # 设置了save_s3为False，这个参数没用了
     ),
-    wandb_10x=L(WandbCallback)(
-        logging_iter_multipler=10,
-        save_logging_iter_multipler=1,
-        save_s3="${upload_reproducible_setup}",
-    ),
+    # wandb_10x=L(WandbCallback)(           # TODO 拉长记录间隔，offline模式下会产生两个log文件，这里先注释掉
+    #     logging_iter_multipler=10,
+    #     save_logging_iter_multipler=1,
+    #     save_s3="${upload_reproducible_setup}",
+    # ),
 )
 
 SPEED_CALLBACKS = dict(

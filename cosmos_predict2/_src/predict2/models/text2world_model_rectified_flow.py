@@ -683,6 +683,7 @@ class Text2WorldModelRectifiedFlow(ImaginaireModel):
         """
         _reg_state_dict = collections.OrderedDict()
         _ema_state_dict = collections.OrderedDict()
+        # state_dict里都是net.开头，没有net_ema.开头，所以下面会提示missing，但是这个应该不影响，因为ema是随模型更新而更新的
         for k, v in state_dict.items():
             if k.startswith("net."):
                 _reg_state_dict[k.replace("net.", "")] = v

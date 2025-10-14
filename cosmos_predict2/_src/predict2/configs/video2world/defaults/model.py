@@ -76,6 +76,8 @@ FSDP_RECTIFIED_FLOW_CONFIG = dict(
 
 def register_model():
     cs = ConfigStore.instance()
+    # package="_global_" 表示配置会合并到 Config 的根级别，而不是放在一个以 group 命名的子包下
+    # 不用_global_， 访问的时候要cfg.model.xxx，加了之后可以直接cfg.xxx
     cs.store(group="model", package="_global_", name="ddp", node=DDP_CONFIG)
     cs.store(group="model", package="_global_", name="fsdp", node=FSDP_CONFIG)
     cs.store(group="model", package="_global_", name="fsdp_wan2pt1", node=FSDP_WAN2PT1_CONFIG)

@@ -93,6 +93,9 @@ class CallBackGroup:
         """
 
         def multi_callback_wrapper(*args, **kwargs) -> None:
+            # self._callbacks的遍历顺序和定义一致 LINK cosmos-predict2.5/cosmos_predict2/_src/predict2/configs/video2world/experiment/reason_embeddings/model_2B_reason_1p1_rectified_flow.py:274 
+            # 即先basic，再viz_online_sampling，再wandb，再cluster_speed
+            # basic的顺序也是和定义一致 LINK cosmos-predict2.5/cosmos_predict2/_src/predict2/configs/common/defaults/callbacks.py:28
             for callback in self._callbacks:
                 assert hasattr(callback, method_name)
                 method = getattr(callback, method_name)

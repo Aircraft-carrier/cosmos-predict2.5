@@ -43,5 +43,9 @@ FusedAdamWConfig: LazyDict = L(get_base_optimizer)(
 
 def register_optimizer():
     cs = ConfigStore.instance()
+    # 一个配置组：optimizer，有两个选项：fusedadamw 和 adamw
+    # fusedadamw 对应 FusedAdamWConfig，表示使用 fusedadamw 优化器
+    # adamw 对应 AdamWConfig，表示使用 adamw 优化器
+    # ** 例子： python train.py ... -- optimizer=fusedadamw
     cs.store(group="optimizer", package="optimizer", name="fusedadamw", node=FusedAdamWConfig)
     cs.store(group="optimizer", package="optimizer", name="adamw", node=AdamWConfig)

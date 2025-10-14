@@ -56,7 +56,8 @@ predict2_video2world_training_2b_groot_gr1_480 = dict(
     dataloader_train=dataloader_train_gr1,
     checkpoint=dict(
         save_iter=200,
-        load_path=get_checkpoint_path(DEFAULT_CHECKPOINT.s3.uri),
+        # load_path=get_checkpoint_path(DEFAULT_CHECKPOINT.s3.uri),       # LINK cosmos-predict2.5/cosmos_predict2/_src/imaginaire/utils/checkpoint_db.py:165
+        load_path='/gemini/platform/public/embodiedAI/users/fanchenyou/models/nvidia/Cosmos-Predict2.5-2B/base/post-trained/81edfebe-bd6a-4039-8c1d-737df1a790bf_ema_bf16.pt',
         load_from_object_store=dict(
             enabled=False,
         ),
@@ -104,9 +105,9 @@ predict2_video2world_training_2b_groot_gr1_480 = dict(
             wandb=dict(
                 save_s3=False,
             ),
-            wandb_10x=dict(
-                save_s3=False,
-            ),
+            # wandb_10x=dict(
+            #     save_s3=False,
+            # ),
             dataloader_speed=dict(
                 save_s3=False,
             ),

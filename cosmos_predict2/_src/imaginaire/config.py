@@ -185,8 +185,8 @@ class JobConfig:
     group: str = ""
     # Run/job name.
     name: str = ""
-    # W&B mode, can be "online", or "disabled".
-    wandb_mode: str = "online"
+    # W&B mode, can be "online", or "disabled" or "offline" (default)
+    wandb_mode: str = "offline"
 
     @property
     def path(self) -> str:

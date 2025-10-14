@@ -162,7 +162,7 @@ class ImaginaireTrainer:
         # Leaving this for backward compability for now, but we can think about moving this to model.on_train_start for all models.
         model = model.to("cuda", memory_format=self.config.trainer.memory_format)  # type: ignore
         model.on_train_start(self.config.trainer.memory_format)
-
+        import ipdb; ipdb.set_trace()
         # Initialize the optimizer, scheduler, and grad_scaler.
         self.callbacks.on_optimizer_init_start()
         optimizer, scheduler = model.init_optimizer_scheduler(self.config.optimizer, self.config.scheduler)
@@ -181,6 +181,7 @@ class ImaginaireTrainer:
             raise ValueError(f"Unknown distributed parallelism mode: {self.config.trainer.distributed_parallelism}")
 
         log.info("Starting training...")
+        # * self.callbacks 是一组callback，会调用这里来确定具体用的函数 LINK cosmos-predict2.5/cosmos_predict2/_src/imaginaire/utils/callback.py:96
         self.callbacks.on_train_start(model, iteration=iteration)
         # Initial validation.
         if self.config.trainer.run_validation and iteration == 0:

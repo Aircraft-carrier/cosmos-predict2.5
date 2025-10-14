@@ -124,7 +124,16 @@ def get_joint_image_two_video_dataloader(
 
 
 def register_training_and_val_data():
-    cs = ConfigStore()
+    cs = ConfigStore()      # 获取 Hydra ConfigStore实例
+    # 有两个配置组：data_train和data_val
+    # data_train组有三个选项：mock、mock_image、mock_video，分别对应三种不同的数据加载方式
+    # data_val组有一个选项：mock，对应一种数据加载方式
+    # 每种数据加载方式都对应一个配置对象，配置对象中定义了数据加载的具体参数
+    # mock对应MOCK_DATA_INTERLEAVE_CONFIG，表示混合图像和视频的模拟数据
+    # mock_image对应MOCK_DATA_IMAGE_ONLY_CONFIG，表示只加载图像的模拟数据
+    # mock_video对应MOCK_DATA_VIDEO_ONLY_CONFIG，表示只加载视频的模拟数据
+    # * 例子： python train.py ... -- data_train=mock_video
+    # * Hydra 会查找 data_train 配置组，选择名为 mock_video 的配置，将其应用到 package 指定的路径
     cs.store(group="data_train", package="dataloader_train", name="mock", node=MOCK_DATA_INTERLEAVE_CONFIG)
     cs.store(group="data_train", package="dataloader_train", name="mock_image", node=MOCK_DATA_IMAGE_ONLY_CONFIG)
     cs.store(group="data_train", package="dataloader_train", name="mock_video", node=MOCK_DATA_VIDEO_ONLY_CONFIG)

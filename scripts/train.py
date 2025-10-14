@@ -45,6 +45,7 @@ def launch(config: Config, args: argparse.Namespace) -> None:
 
     # Create the model and load the consolidated checkpoint if provided.
     # If the checkpoint is in DCP format, checkpoint loading will be handled by the DCP checkpointer.
+    # model: LINK cosmos-predict2.5/cosmos_predict2/_src/predict2/models/text2world_model_rectified_flow.py:106
     if isinstance(config.checkpoint.load_path, str) and config.checkpoint.load_path.endswith(".pt"):
         model = create_model_from_consolidated_checkpoint_with_fsdp(config)
     else:
@@ -54,6 +55,7 @@ def launch(config: Config, args: argparse.Namespace) -> None:
     dataloader_train = instantiate(config.dataloader_train)
     dataloader_val = instantiate(config.dataloader_val)
     # Start training
+    # LINK cosmos-predict2.5/cosmos_predict2/_src/imaginaire/trainer.py:58
     trainer.train(
         model,
         dataloader_train,
@@ -67,7 +69,7 @@ if __name__ == "__main__":
     # Get the config file from the input arguments.
     parser = argparse.ArgumentParser(description="Training")
     parser.add_argument("--config", help="Path to the config file", required=True)
-    parser.add_argument(
+    parser.add_argument(                # 在命令行中动态地修改或覆盖配置文件（config file）中的参数。
         "opts",
         help="""
 Modify config options at the end of the command. For Yacs configs, use
@@ -89,14 +91,16 @@ For python-based LazyConfig, use "path.key=value".
     )
     args = parser.parse_args()
     config_module = get_config_module(args.config)
+    # LINK cosmos-predict2.5/cosmos_predict2/_src/predict2/configs/video2world/config.py:62
     config = importlib.import_module(config_module).make_config()
+    # NOTE make_config 会把之前所有的实验配置都加载进来，override这里会选择当前实验具体用哪个配置
     overrides = list(args.opts)
     if args.smoke:
         overrides.append("job.wandb_mode=disabled")
         overrides.append("trainer.max_iter=2")
         overrides.append("trainer.logging_iter=1")
         overrides.append("trainer.validation_iter=1")
-    config = override(config, overrides)
+    config = override(config, overrides)git add
     if args.dryrun:
         logging.info(
             "Config:\n" + config.pretty_print(use_color=True) + "\n" + pretty_print_overrides(args.opts, use_color=True)

@@ -68,12 +68,14 @@ def make_config() -> Config:
     )
 
     # Specifying values through instances of attrs
+    # JobConfig -> LINK cosmos-predict2.5/cosmos_predict2/_src/imaginaire/config.py:181
     c.job.project = "cosmos_diffusion_v2"
     c.job.group = "debug"
     c.job.name = "delete_${now:%Y-%m-%d}_${now:%H-%M-%S}"
 
+    # TrainerConfig -> LINK cosmos-predict2.5/cosmos_predict2/_src/imaginaire/config.py:348
     c.trainer.type = Trainer
-    c.trainer.straggler_detection.enabled = False
+    c.trainer.straggler_detection.enabled = False           # 禁用掉队检测（用于多GPU训练中检测慢节点）
     c.trainer.max_iter = 400_000
     c.trainer.logging_iter = 10
     c.trainer.validation_iter = 100
@@ -81,12 +83,17 @@ def make_config() -> Config:
     c.trainer.callbacks = None
 
     # Call this function to register config groups for advanced overriding. the order follows the default config groups
+    # * 将不同模块的配置注册到 Hydra ConfigStore ---> 这里其实就是在定义有哪些参数，类似 parser.add_argument，这里复杂一些，用hydra来管理
+    # 以 optimizer 为例，注册过程就是告诉 Hydra：有一个名为 optimizer 的配置组，这个组有两个选项：fusedadamw 和 adamw，当用户选择 optimizer=fusedadamw 时，使用这个配置对象
+    # 所有 register_*() 函数都遵循相同的模式：获取 Hydra ConfigStore 实例
+    # group -> 配置组名；package -> 配置在 Config 对象中的路径；name -> 选项名称；node -> 配置对象/值
     register_training_and_val_data()
     register_optimizer()
     register_scheduler()
     register_model()
     register_callbacks()
     register_net()
+    # Sets the video conditioning frames for video-to-video generation.
     register_conditioner()
     register_ema()
     register_tokenizer()
@@ -95,7 +102,12 @@ def make_config() -> Config:
 
     # experiment config are defined in the experiment folder
     # call import_all_modules_from_package to register them
+    # 递归导入指定包下的所有 Python 模块，确保实验级配置被注册到 Hydra。
+    # * 就是设置很多种可选的默认参数，根据experiment=xxx来选择
+    # TODO 这段代码的逻辑就是导入experiment下所有文件，注册各种配置名称，这样在train.py中就可以通过experiment=xxx来选择配置 <-- 感觉不需要这个功能，能否删除？
+    # NOTE 不能，因为需要继承原来的训练配置，详见 cosmos-predict2.5/cosmos_predict2/experiments/base/cosmos_nemo_assets.py
     import_all_modules_from_package("cosmos_predict2._src.predict2.configs.video2world.experiment", reload=True)
+    # 遍历cosmos_predict2.experiments下所有目录，现在就是base，遍历cosmos_predict2.experiments.base下所有文件
     import_all_modules_from_package("cosmos_predict2.experiments", reload=True)
 
     return c

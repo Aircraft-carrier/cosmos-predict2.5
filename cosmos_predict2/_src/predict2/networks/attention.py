@@ -64,7 +64,8 @@ import torch
 from torch.nn.attention import SDPBackend, sdpa_kernel
 
 try:
-    from flash_attn_3.flash_attn_interface import flash_attn_func
+    # from flash_attn_3.flash_attn_interface import flash_attn_func
+    from flash_attn_interface import flash_attn_func
 
     FLASH_ATTN_3_AVAILABLE = True
 except ModuleNotFoundError:
