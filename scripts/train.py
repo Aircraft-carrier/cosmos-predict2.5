@@ -91,7 +91,8 @@ For python-based LazyConfig, use "path.key=value".
     )
     args = parser.parse_args()
     config_module = get_config_module(args.config)
-    # LINK cosmos-predict2.5/cosmos_predict2/_src/predict2/configs/video2world/config.py:62
+    # Single view -> LINK cosmos-predict2.5/cosmos_predict2/_src/predict2/configs/video2world/config.py:61
+    # Multi view -> LINK cosmos-predict2.5/cosmos_predict2/_src/predict2_multiview/configs/vid2vid/config.py:27
     config = importlib.import_module(config_module).make_config()
     # NOTE make_config 会把之前所有的实验配置都加载进来，override这里会选择当前实验具体用哪个配置
     overrides = list(args.opts)
@@ -100,7 +101,7 @@ For python-based LazyConfig, use "path.key=value".
         overrides.append("trainer.max_iter=2")
         overrides.append("trainer.logging_iter=1")
         overrides.append("trainer.validation_iter=1")
-    config = override(config, overrides)git add
+    config = override(config, overrides)
     if args.dryrun:
         logging.info(
             "Config:\n" + config.pretty_print(use_color=True) + "\n" + pretty_print_overrides(args.opts, use_color=True)

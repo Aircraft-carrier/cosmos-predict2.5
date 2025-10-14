@@ -25,7 +25,7 @@ from cosmos_predict2._src.predict2_multiview.callbacks.every_n_draw_sample_multi
 torchrun --nproc_per_node=8 --master_port=12341 -m scripts.train --config=cosmos_predict2/_src/predict2_multiview/configs/vid2vid/config.py -- experiment=buttercup_predict2p5_2b_mv_7views_res720p_fps10_t8_frompred2p1multicaps8k_jointalpamayov2mads720pmulticaps job.project="debug_p2_mv" job.name="debug" checkpoint.load_path=""
 """
 
-
+# 父类config 3
 def buttercup_predict2p5_2b_mv_7views_res720p_fps10_t8_frompred2p1multicaps8k_jointalpamayov2mads720pmulticaps():
     sample_n_views = 7
     return dict(
@@ -171,7 +171,7 @@ def buttercup_predict2p5_2b_mv_7views_res720p_fps15_t8_from16kfps10mv_jointalpam
 torchrun --nproc_per_node=8 --master_port=12341 -m scripts.train --config=cosmos_predict2/_src/predict2_multiview/configs/vid2vid/config.py -- experiment=buttercup_predict2p5_2b_mv_7views_res720p_fps30_t8_from16kfps10mv_jointalpamayov2mads720pmulticaps29frames job.project="debug_p2_mv" job.name="debug" checkpoint.load_path=""
 """
 
-
+# 父类config 2：相较于父类config 3，修改了数据集
 def buttercup_predict2p5_2b_mv_7views_res720p_fps30_t8_from16kfps10mv_jointalpamayov2mads720pmulticaps29frames():
     return dict(
         defaults=[
@@ -407,7 +407,8 @@ def buttercup_predict2p5_2b_mv_7views_res720p_fps30_t8_from28kfps30mv_alpamayov2
 torchrun --nproc_per_node=8 --master_port=12341 -m scripts.train --config=cosmos_predict2/_src/predict2_multiview/configs/vid2vid/config.py -- experiment=buttercup_predict2p5_2b_7views_res720p_fps30_t8_from48kfps30mv_condprobs0442_joint_alpamayo1capnoviewprefix_allcapsviewprefix_29frames job.project="debug_p2_mv" job.name="debug" checkpoint.load_path=""
 """
 
-
+# 父类config 1：相较于父类config 2，修改了数据集
+# 加了conditional_frames_probs
 def buttercup_predict2p5_2b_7views_res720p_fps30_t8_from48kfps30mv_condprobs0442_joint_alpamayo1capnoviewprefix_allcapsviewprefix_29frames():
     return dict(
         defaults=[
@@ -465,7 +466,7 @@ def buttercup_predict2p5_2b_7views_res720p_fps30_t8_from48kfps30mv_condprobs0442
         ),
     )
 
-
+# Released experiment config
 def buttercup_predict2p5_2b_7views_res720p_fps30_t8_from48kfps30mv_condprobs0442_joint_alpamayo1capnoviewprefix_allcapsviewprefix_29frames_nofps():
     return dict(
         defaults=[
