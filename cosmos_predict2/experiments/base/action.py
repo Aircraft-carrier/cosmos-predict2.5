@@ -48,6 +48,7 @@ ac_reason_embeddings_rectified_flow_2b_256_320 = LazyDict(
         ),
         checkpoint=dict(
             save_iter=2_000,
+            # pyrefly: ignore  # missing-attribute
             load_path=get_checkpoint_path(DEFAULT_CHECKPOINT.s3.uri),
             load_training_state=False,
             strict_resume=False,
