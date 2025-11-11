@@ -68,6 +68,7 @@ def create_worker():
     For any deployed model a factory function needs to be defined as input parameter
     for the GradioApp.
     """
+    # pyrefly: ignore  # bad-instantiation
     return ModelWorker()
 
 
@@ -107,15 +108,18 @@ def worker_main():
 
     factory_module = os.environ.get("FACTORY_MODULE")
     factory_function = os.environ.get("FACTORY_FUNCTION", "create_worker")
+    pipeline = None
 
     try:
         pipeline = create_worker_pipeline(factory_module, factory_function)
-        worker_status.signal_status(rank, "success", "Worker initialized successfully")
+        worker_status.signal_status(rank, "success", {"message": "Worker initialized successfully"})
 
         while True:
             try:
                 command_data = worker_cmd.wait_for_command(rank)
+                # pyrefly: ignore  # missing-attribute
                 command = command_data.get("command")
+                # pyrefly: ignore  # missing-attribute
                 params = command_data.get("params", {})
 
                 log.info(f"Worker {rank} running {command=} with parameters: {params}")
@@ -129,17 +133,17 @@ def worker_main():
                     break
                 else:
                     log.warning(f"Worker {rank} received unknown command: {command}")
-                    worker_status.signal_status(rank, "error", f"Unknown command: {command}")
+                    worker_status.signal_status(rank, status=f"Unknown command: {command}")
 
             except Exception as e:
                 log.error(f"Worker {rank} error processing command: {e}")
                 log.error(traceback.format_exc())
-                worker_status.signal_status(rank, "error", str(e) + f"\n{traceback.format_exc()}")
+                worker_status.signal_status(rank, status=str(e) + f"\n{traceback.format_exc()}")
 
     except Exception as e:
         log.error(f"Worker {rank} initialization error processing: {e}")
         log.error(traceback.format_exc())
-        worker_status.signal_status(rank, "error", str(e) + f"\n{traceback.format_exc()}")
+        worker_status.signal_status(rank, status=str(e) + f"\n{traceback.format_exc()}")
     finally:
         log.info(f"Worker {rank} shutting down...")
 

@@ -22,6 +22,7 @@ from hydra.core.config_store import ConfigStore
 
 from cosmos_predict2._src.imaginaire.lazy_config import LazyCall as L
 from cosmos_predict2._src.imaginaire.lazy_config import LazyDict
+from cosmos_predict2._src.imaginaire.utils.context_parallel import broadcast_split_tensor
 from cosmos_predict2._src.predict2.conditioner import (
     ReMapkey,
     Text2WorldCondition,
@@ -32,7 +33,6 @@ from cosmos_predict2._src.predict2.configs.video2world.defaults.conditioner impo
     Video2WorldConditioner,
     VideoPredictionConditioner,
 )
-from cosmos_predict2._src.predict2.utils.context_parallel import broadcast_split_tensor
 
 
 @dataclass(frozen=True)
@@ -192,6 +192,7 @@ class CameraConditionedARCondition(Video2WorldCondition):
         gt_frames: torch.Tensor,
         num_conditional_frames: Optional[int] = None,
         is_training: Optional[bool] = True,
+        is_lvg: Optional[bool] = False,
     ) -> "CameraConditionedARCondition":
         kwargs = self.to_dict(skip_underscore=False)
         kwargs["gt_frames"] = gt_frames
@@ -213,7 +214,7 @@ class CameraConditionedARCondition(Video2WorldCondition):
             condition_video_input_mask_B_C_T_H_W[idx, :, : num_conditional_frames_B[idx] * 2, :, :] += 1
             condition_video_input_mask_B_C_T_H_W[idx, :, (-num_conditional_frames_B[idx] * 2) :, :, :] += 1
 
-            if is_training and random.random() < 0.45:
+            if (is_training and random.random() < 0.45) or is_lvg:
                 condition_video_input_mask_B_C_T_H_W[
                     idx, :, (num_conditional_frames_B[idx] * 2) : (num_conditional_frames_B[idx] * 2 + 6), :, :
                 ] += 1

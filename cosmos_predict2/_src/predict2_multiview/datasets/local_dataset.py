@@ -4,7 +4,7 @@
 from collections.abc import Callable
 from dataclasses import dataclass
 from functools import partial
-from typing import Any, Dict, Iterable, TypedDict
+from typing import Any, Iterable, TypedDict
 
 import torch
 from torch.utils.data import Dataset
@@ -14,7 +14,16 @@ from cosmos_predict2._src.predict2_multiview.configs.vid2vid.defaults.driving im
 from cosmos_predict2._src.predict2_multiview.datasets.augmentor_provider import (
     get_video_augmentor_v2_multiview_no_text_emb,
 )
-from cosmos_predict2.multiview_config import VIEW_INDEX_DICT
+
+VIEW_INDEX_DICT = {
+    "front_wide": 0,
+    "cross_right": 1,
+    "rear_right": 2,
+    "rear": 3,
+    "rear_left": 4,
+    "cross_left": 5,
+    "front_tele": 6,
+}
 
 
 class MultiviewInput(TypedDict):
@@ -73,7 +82,7 @@ class LocalMultiviewDataset(Dataset):
 
     def __init__(
         self,
-        video_file_dict: Dict[str, str],
+        video_file_dict: dict[str, str],
         augmentor_fn: Callable,
     ):
         super().__init__()
@@ -126,7 +135,7 @@ class LocalMultiviewDatasetBuilder:
 
     def __init__(
         self,
-        video_file_dict: Dict[str, str],
+        video_file_dict: dict[str, str],
     ):
         """
         Initialize the dataset, similar to webdataset.Dataset.__init__.
@@ -155,7 +164,7 @@ class LocalMultiviewDatasetBuilder:
                 data = wrap_augmentor_func_as_generator(aug_fn, data)
         yield from data
 
-    def build_data_augmentor(self, augmentor_cfg: Dict[str, Any]) -> Callable:
+    def build_data_augmentor(self, augmentor_cfg: dict[str, Any]) -> Callable:
         """
         Build data augmentors from config, similar to webdataset.
 

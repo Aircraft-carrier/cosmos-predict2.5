@@ -27,25 +27,25 @@ from cosmos_predict2.config import MODEL_CHECKPOINTS, ModelKey
 DEFAULT_CHECKPOINT = MODEL_CHECKPOINTS[ModelKey(post_trained=False)]
 
 
-# Cosmos-NeMo-Assets video2world dataset and dataloader for LoRA training
-example_video_dataset_cosmos_nemo_assets_lora = L(VideoDataset)(
+# Cosmos-NeMo-Assets dataset and dataloader for LoRA training
+example_dataset_cosmos_nemo_assets_lora = L(VideoDataset)(
     dataset_dir="datasets/cosmos_nemo_assets",
     num_frames=93,
     video_size=(704, 1280),
 )
 
 dataloader_train_cosmos_nemo_assets_lora = L(get_generic_dataloader)(
-    dataset=example_video_dataset_cosmos_nemo_assets_lora,
-    sampler=L(get_sampler)(dataset=example_video_dataset_cosmos_nemo_assets_lora),
+    dataset=example_dataset_cosmos_nemo_assets_lora,
+    sampler=L(get_sampler)(dataset=example_dataset_cosmos_nemo_assets_lora),
     batch_size=1,
     drop_last=True,
     num_workers=4,
     pin_memory=True,
 )
 
-# Video2World LoRA post-training configuration for 2B model
-# torchrun --nproc_per_node=8 --master_port=12341 -m scripts.train --config=cosmos_predict2/_src/predict2/configs/video2world/config.py -- experiment=predict2_video2world_lora_training_2b_cosmos_nemo_assets
-predict2_video2world_lora_training_2b_cosmos_nemo_assets = dict(
+# LoRA post-training configuration for all modes (text2world, image2world, video2world)
+# torchrun --nproc_per_node=8 --master_port=12341 -m scripts.train --config=cosmos_predict2/_src/predict2/configs/video2world/config.py -- experiment=predict2_lora_training_2b_cosmos_nemo_assets
+predict2_lora_training_2b_cosmos_nemo_assets = dict(
     defaults=[
         f"/experiment/{DEFAULT_CHECKPOINT.experiment}",
         {"override /data_train": "mock"},
@@ -54,12 +54,13 @@ predict2_video2world_lora_training_2b_cosmos_nemo_assets = dict(
     ],
     job=dict(
         project="cosmos_predict_v2p5",
-        group="video2world_lora",
+        group="lora",
         name="2b_cosmos_nemo_assets_lora",
     ),
     dataloader_train=dataloader_train_cosmos_nemo_assets_lora,
     checkpoint=dict(
         save_iter=200,
+        # pyrefly: ignore  # missing-attribute
         load_path=get_checkpoint_path(DEFAULT_CHECKPOINT.s3.uri),
         load_from_object_store=dict(
             enabled=False,
@@ -120,6 +121,21 @@ predict2_video2world_lora_training_2b_cosmos_nemo_assets = dict(
             lora_alpha=32,
             lora_target_modules="q_proj,k_proj,v_proj,output_proj,mlp.layer1,mlp.layer2",
             init_lora_weights=True,
+            # Training configuration for all three modes
+            # The model will randomly sample between 0, 1, and 2 conditional frames during training
+            min_num_conditional_frames=0,  # Allow text2world (0 frames)
+            max_num_conditional_frames=2,  # Allow up to video2world (2 frames)
+            # Probability distribution for sampling number of conditional frames
+            # This controls how often each mode is trained:
+            # - 0 frames: text2world (33.3%)
+            # - 1 frame: image2world (33.3%)
+            # - 2 frames: video2world (33.3%)
+            conditional_frames_probs={0: 0.333, 1: 0.333, 2: 0.334},
+            # Optional: set conditional_frame_timestep for better control
+            conditional_frame_timestep=-1.0,  # Default -1 means not effective
+            # Keep the default conditioning strategy
+            conditioning_strategy="frame_replace",
+            denoise_replace_gt_frames=True,
         ),
     ),
     model_parallel=dict(
@@ -129,9 +145,9 @@ predict2_video2world_lora_training_2b_cosmos_nemo_assets = dict(
 
 cs = ConfigStore.instance()
 
-# Register the configuration with Hydra ConfigStore
+# Register the configurations with Hydra ConfigStore
 for _item in [
-    predict2_video2world_lora_training_2b_cosmos_nemo_assets,
+    predict2_lora_training_2b_cosmos_nemo_assets,
 ]:
     # Get the experiment name from the global variable
     experiment_name = [name.lower() for name, value in globals().items() if value is _item][0]  # noqa: RUF015

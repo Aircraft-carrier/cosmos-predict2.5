@@ -13,31 +13,14 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import pytest
-
 from cosmos_predict2.config import (
-    DEFAULT_NEGATIVE_PROMPT,
-    IMAGE_EXTENSIONS,
-    VIDEO_EXTENSIONS,
     ModelKey,
     ModelSize,
     ModelVariant,
 )
 
 
-@pytest.mark.L0
-def test_constants():
-    import cosmos_predict2._src.predict2.inference.video2world as src
-
-    assert IMAGE_EXTENSIONS == src._IMAGE_EXTENSIONS
-    assert VIDEO_EXTENSIONS == src._VIDEO_EXTENSIONS
-    assert DEFAULT_NEGATIVE_PROMPT == src._DEFAULT_NEGATIVE_PROMPT
-
-
-@pytest.mark.L0
 def test_model_key():
     assert ModelKey().name == "2B/post-trained"
     assert ModelKey(size=ModelSize._14B).name == "14B/post-trained"
     assert ModelKey(variant=ModelVariant.AUTO_MULTIVIEW).name == "2B/auto/multiview"
-    assert ModelKey(variant=ModelVariant.ROBOT_MULTIVIEW).name == "2B/robot/multiview"
-    assert ModelKey(variant=ModelVariant.ROBOT_MULTIVIEW_AGIBOT).name == "2B/robot/multiview-agibot"

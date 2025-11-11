@@ -21,6 +21,7 @@ from typing import Annotated, Literal
 import pydantic
 import tyro
 
+from cosmos_predict2._src.imaginaire.flags import SMOKE
 from cosmos_predict2.config import (
     MODEL_CHECKPOINTS,
     CommonInferenceArguments,
@@ -35,16 +36,6 @@ from cosmos_predict2.config import (
 DEFAULT_MODEL_KEY = ModelKey(variant=ModelVariant.AUTO_MULTIVIEW)
 DEFAULT_CHECKPOINT = MODEL_CHECKPOINTS[DEFAULT_MODEL_KEY]
 
-VIEW_INDEX_DICT = {
-    "front_wide": 0,
-    "cross_right": 1,
-    "rear_right": 2,
-    "rear": 3,
-    "rear_left": 4,
-    "cross_left": 5,
-    "front_tele": 6,
-}
-
 StackMode = Literal["time", "height"]
 
 
@@ -52,6 +43,7 @@ class MultiviewSetupArguments(CommonSetupArguments):
     """Arguments for multiview setup."""
 
     # Override defaults
+    # pyrefly: ignore  # invalid-annotation
     model: get_model_literal([ModelVariant.AUTO_MULTIVIEW]) = DEFAULT_MODEL_KEY.name
     use_config_dataloader: bool = False
     """Ignore input root and use dataloader in config"""
@@ -74,7 +66,7 @@ class ViewConfig(pydantic.BaseModel):
     model_config = pydantic.ConfigDict(extra="forbid")
 
     video_path: ResolvedFilePath | None = None
-    """Path to the input video for this view."""
+    """Path to the input video for this view. Optional and ignored for TEXT2WORLD. Required for IMAGE2WORLD (first frame) and VIDEO2WORLD (first 2 frames)."""
 
 
 class MultiviewInferenceArguments(CommonInferenceArguments):
@@ -84,7 +76,7 @@ class MultiviewInferenceArguments(CommonInferenceArguments):
     inference_type: tyro.conf.EnumChoicesFromValues[MultiviewInferenceType]
     """Inference type."""
 
-    n_views: int = pydantic.Field(default=7, description="Number of views to generate")
+    n_views: int = pydantic.Field(default=1 if SMOKE else 7, description="Number of views to generate")
     """Number of views to generate."""
     control_weight: Annotated[float, pydantic.Field(ge=0.0, le=1.0)] = 1.0
     """Control weight for generation."""
@@ -93,14 +85,17 @@ class MultiviewInferenceArguments(CommonInferenceArguments):
 
     fps: pydantic.PositiveInt = 30
     """Frames per second for output video."""
-    num_steps: pydantic.PositiveInt = 35
+    num_steps: pydantic.PositiveInt = 1 if SMOKE else 35
     """Number of generation steps."""
 
     # Override defaults
+    # pyrefly: ignore  # bad-override
     prompt: str
+    # pyrefly: ignore  # bad-override
     negative_prompt: None = pydantic.Field(None, exclude=True)
 
     @cached_property
+    # pyrefly: ignore  # bad-return
     def num_input_frames(self) -> int:
         """Get number of input frames."""
         if self.inference_type == MultiviewInferenceType.TEXT2WORLD:
@@ -130,6 +125,7 @@ class MultiviewInferenceArgumentsWithInputPaths(MultiviewInferenceArguments):
     """Front tele view configuration."""
 
     @cached_property
+    # pyrefly: ignore  # bad-return
     def num_input_frames(self) -> int:
         """Get number of input frames."""
         if self.inference_type == MultiviewInferenceType.TEXT2WORLD:

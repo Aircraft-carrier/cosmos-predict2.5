@@ -18,27 +18,28 @@ from pathlib import Path
 
 os.environ.setdefault("TOKENIZERS_PARALLELISM", "false")
 from cosmos_predict2.multiview import MultiviewInference
-from cosmos_predict2.multiview_config import MultiviewInferenceArguments, MultiviewSetupArguments
+from cosmos_predict2.multiview_config import MultiviewInferenceArgumentsWithInputPaths, MultiviewSetupArguments
 
 
 class Multiview_Worker:
     def __init__(
         self,
         num_gpus,  # todo not sure if anything else is supported
+        disable_guardrails=False,
     ):
         assert num_gpus == 8, "Multiview currently requires 8 GPUs"
-        setup_args = MultiviewSetupArguments(output_dir="outputs")
-        # checkpoint_path=DEFAULT_CHECKPOINT.path,
-        # experiment=DEFAULT_CHECKPOINT.experiment,
-        # checkpoint_uuid=DEFAULT_CHECKPOINT.uuid,
-        # context_parallel_size=num_gpus,
-
+        setup_args = MultiviewSetupArguments(
+            model="2B/auto/multiview",
+            output_dir=Path("outputs"),
+            keep_going=True,
+            disable_guardrails=disable_guardrails,
+        )
         self.pipe = MultiviewInference(setup_args)
 
     def infer(self, args: dict):
         output_dir = args.pop("output_dir", "outputs")
-        p = MultiviewInferenceArguments(**args)
-        output_videos = self.pipe.generate(p, Path(output_dir))
+        p = MultiviewInferenceArgumentsWithInputPaths(**args)
+        output_videos = self.pipe.generate([p], Path(output_dir))
         return {
             "videos": output_videos,
         }

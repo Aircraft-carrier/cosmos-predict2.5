@@ -21,6 +21,7 @@ import numpy as np
 import torch
 
 from cosmos_predict2._src.imaginaire.auxiliary.guardrail.common import presets as guardrail_presets
+from cosmos_predict2._src.imaginaire.flags import SMOKE
 from cosmos_predict2._src.imaginaire.lazy_config import instantiate
 from cosmos_predict2._src.imaginaire.lazy_config.lazy import LazyConfig
 from cosmos_predict2._src.imaginaire.utils import distributed, log
@@ -57,10 +58,16 @@ class MultiviewInference:
         self.guardrail_enabled = not args.disable_guardrails
 
         self.pipe = Vid2VidInference(
-            args.experiment, args.checkpoint_path, context_parallel_size=args.context_parallel_size
+            # pyrefly: ignore  # bad-argument-type
+            args.experiment,
+            # pyrefly: ignore  # bad-argument-type
+            args.checkpoint_path,
+            # pyrefly: ignore  # bad-argument-type
+            context_parallel_size=args.context_parallel_size,
         )
         if self.rank0:
             args.output_dir.mkdir(parents=True, exist_ok=True)
+            # pyrefly: ignore  # bad-argument-type
             LazyConfig.save_yaml(self.pipe.config, args.output_dir / "config.yaml")
 
             if self.guardrail_enabled:
@@ -71,7 +78,9 @@ class MultiviewInference:
                     offload_model_to_cpu=args.offload_guardrail_models
                 )
             else:
+                # pyrefly: ignore  # bad-assignment
                 self.text_guardrail_runner = None
+                # pyrefly: ignore  # bad-assignment
                 self.video_guardrail_runner = None
 
     def generate(
@@ -82,6 +91,8 @@ class MultiviewInference:
             return self._generate_from_config_dataloader(samples, output_dir)
         else:
             assert isinstance(samples, list)
+            if SMOKE:
+                samples = samples[:1]
             output_paths: list[str] = []
             sample_names = [sample.name for sample in samples]
             log.info(f"Generating {len(samples)} samples: {sample_names}")
@@ -97,7 +108,7 @@ class MultiviewInference:
         output_path = output_dir / sample.name
 
         if self.rank0:
-            output_path.mkdir(parents=True, exist_ok=True)
+            output_dir.mkdir(parents=True, exist_ok=True)
             open(f"{output_path}.json", "w").write(sample.model_dump_json())
             log.info(f"Saved arguments to {output_path}.json")
 
@@ -105,8 +116,12 @@ class MultiviewInference:
             if self.text_guardrail_runner is not None:
                 log.info("Running guardrail check on prompt...")
                 if not guardrail_presets.run_text_guardrail(str(sample.prompt), self.text_guardrail_runner):
-                    log.critical(f"Guardrail blocked text2world generation. Prompt: {str(sample.prompt)}")
-                    exit(1)
+                    message = f"Guardrail blocked text2world generation. Prompt: {str(sample.prompt)}"
+                    log.critical(message)
+                    if self.setup_args.keep_going:
+                        return None
+                    else:
+                        raise Exception(message)
                 else:
                     log.success("Passed guardrail on prompt")
             elif self.text_guardrail_runner is None:
@@ -116,6 +131,7 @@ class MultiviewInference:
         driving_dataloader_config = copy.deepcopy(MADS_DRIVING_DATALOADER_CONFIG_PER_RESOLUTION[resolution])
         driving_dataloader_config.n_views = sample.n_views
 
+        # pyrefly: ignore  # bad-argument-type
         dataset = LocalMultiviewDatasetBuilder(sample.input_paths).build_dataset(
             LocalMultiviewAugmentorConfig(
                 resolution=resolution,
@@ -151,8 +167,12 @@ class MultiviewInference:
                 frames = frames.permute(1, 2, 3, 0).cpu().numpy().astype(np.uint8)  # (T, H, W, C)
                 processed_frames = guardrail_presets.run_video_guardrail(frames, self.video_guardrail_runner)
                 if processed_frames is None:
-                    log.critical("Guardrail blocked video2world generation.")
-                    exit(1)
+                    message = "Guardrail blocked video2world generation."
+                    log.critical(message)
+                    if self.setup_args.keep_going:
+                        return None
+                    else:
+                        raise Exception(message)
                 else:
                     log.success("Passed guardrail on generated video")
                 # Convert processed frames back to tensor format
@@ -175,6 +195,7 @@ class MultiviewInference:
 
         dataloader = instantiate(self.pipe.config.dataloader_val)
         output_paths: list[str] = []
+        # pyrefly: ignore  # no-matching-overload
         for batch in iter(dataloader):
             batch[NUM_CONDITIONAL_FRAMES_KEY] = sample.num_input_frames
             video = self.pipe.generate_from_batch(

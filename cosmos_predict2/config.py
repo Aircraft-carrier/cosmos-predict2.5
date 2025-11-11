@@ -25,8 +25,10 @@ from typing import Annotated, Any, Literal, NoReturn, Optional, TypeVar
 import pydantic
 import tyro
 import yaml
+from pydantic_core import PydanticUndefined
 from typing_extensions import Self, assert_never
 
+from cosmos_predict2._src.imaginaire.flags import EXPERIMENTAL_CHECKPOINTS, SMOKE
 from cosmos_predict2._src.imaginaire.utils.checkpoint_db import get_checkpoint_by_uuid
 
 
@@ -60,20 +62,29 @@ _PydanticModelT = TypeVar("_PydanticModelT", bound=pydantic.BaseModel)
 
 def get_overrides_cls(cls: type[_PydanticModelT], *, exclude: list[str] | None = None) -> type[pydantic.BaseModel]:
     """Get overrides class for a given pydantic model."""
-    names = set(cls.model_fields.keys())
-    if exclude is not None:
-        invalid = set(exclude) - names
-        if invalid:
-            raise ValueError(f"Invalid exclude: {invalid}")
-        names -= set(exclude)
-    fields = {name: (Optional[cls.model_fields[name].rebuild_annotation()], None) for name in names}
+    # pyrefly: ignore  # no-matching-overload
+    names = [name for name in cls.model_fields.keys() if exclude is None or name not in exclude]
+    fields = {}
+    for name in names:
+        # pyrefly: ignore  # no-matching-overload
+        model_field = cls.model_fields[name]
+        behavior_hint = (
+            f"(default: {model_field.default})"
+            if model_field.default is not PydanticUndefined
+            else "(default: None) (required)"
+        )
+        annotation = Annotated[Optional[model_field.annotation], tyro.conf.arg(help_behavior_hint=behavior_hint)]
+        fields[name] = (annotation, pydantic.Field(default=None, description=model_field.description))
+    # pyrefly: ignore  # no-matching-overload, bad-argument-type, bad-argument-count
     return pydantic.create_model(f"{cls.__name__}Overrides", **fields)
 
 
 def _get_root_exception(exception: Exception) -> Exception:
     if exception.__cause__ is not None:
+        # pyrefly: ignore  # bad-argument-type
         return _get_root_exception(exception.__cause__)
     if exception.__context__ is not None:
+        # pyrefly: ignore  # bad-argument-type
         return _get_root_exception(exception.__context__)
     return exception
 
@@ -107,6 +118,8 @@ CheckpointUuid = Annotated[str, pydantic.AfterValidator(_validate_checkpoint_uui
 
 def _validate_checkpoint_path(v: str) -> str:
     """Validate checkpoint path or URI."""
+    if SMOKE:
+        return v
     if v.startswith("s3://"):
         return v
     if not os.path.exists(v):
@@ -128,8 +141,6 @@ class ModelSize(str, enum.Enum):
 class ModelVariant(str, enum.Enum):
     BASE = "base"
     AUTO_MULTIVIEW = "auto/multiview"
-    ROBOT_MULTIVIEW = "robot/multiview"
-    ROBOT_MULTIVIEW_AGIBOT = "robot/multiview-agibot"
     ROBOT_ACTION_COND = "robot/action-cond"
 
     def __str__(self) -> str:
@@ -159,11 +170,9 @@ MODEL_CHECKPOINTS = {
     ModelKey(post_trained=False): get_checkpoint_by_uuid("d20b7120-df3e-4911-919d-db6e08bad31c"),
     ModelKey(): get_checkpoint_by_uuid("81edfebe-bd6a-4039-8c1d-737df1a790bf"),
     ModelKey(post_trained=False, size=ModelSize._14B): get_checkpoint_by_uuid("54937b8c-29de-4f04-862c-e67b04ec41e8"),
-    ModelKey(variant=ModelVariant.AUTO_MULTIVIEW): get_checkpoint_by_uuid("6b9d7548-33bb-4517-b5e8-60caf47edba7"),
-    ModelKey(variant=ModelVariant.ROBOT_MULTIVIEW): get_checkpoint_by_uuid("0e8177cc-0db5-4cfd-a8a4-b820c772f4fc"),
-    ModelKey(variant=ModelVariant.ROBOT_MULTIVIEW_AGIBOT): get_checkpoint_by_uuid(
-        "7f6b99b7-7fac-4e74-8dbe-a394cb56ef99"
-    ),
+    ModelKey(variant=ModelVariant.AUTO_MULTIVIEW): get_checkpoint_by_uuid("6b9d7548-33bb-4517-b5e8-60caf47edba7")
+    if not EXPERIMENTAL_CHECKPOINTS
+    else get_checkpoint_by_uuid("524af350-2e43-496c-8590-3646ae1325da"),
     ModelKey(variant=ModelVariant.ROBOT_ACTION_COND): get_checkpoint_by_uuid("38c6c645-7d41-4560-8eeb-6f4ddc0e6574"),
 }
 """Mapping from model key to checkpoint."""
@@ -172,6 +181,7 @@ MODEL_KEYS = {k.name: k for k in MODEL_CHECKPOINTS.keys()}
 """Mapping from model name to model key."""
 
 
+# pyrefly: ignore  # invalid-annotation
 def get_model_literal(variants: list[ModelVariant] | None = None) -> Literal:
     """Get model literal for a given variant."""
     model_names: list[str] = []
@@ -179,6 +189,7 @@ def get_model_literal(variants: list[ModelVariant] | None = None) -> Literal:
         if variants is not None and k.variant not in variants:
             continue
         model_names.append(k.name)
+    # pyrefly: ignore  # bad-return, invalid-literal
     return Literal[tuple(model_names)]
 
 
@@ -200,22 +211,29 @@ class CommonSetupArguments(pydantic.BaseModel):
     """Output directory."""
 
     # Optional parameters
+    # pyrefly: ignore  # invalid-annotation
     model: get_model_literal() = DEFAULT_MODEL_KEY.name
     """Model name."""
     checkpoint_path: CheckpointPath | None = None
-    """Path to the checkpoint."""
+    """Path to the checkpoint. Override this if you have a post-training checkpoint"""
     experiment: str | None = None
-    """Experiment name."""
+    """Experiment name. Override this with your custom experiment when post-training"""
     config_file: str = "cosmos_predict2/_src/predict2/configs/video2world/config.py"
     """Configuration file for the model."""
     context_parallel_size: pydantic.PositiveInt | None = None
-    """Context parallel size. Default to all nodes."""
-    disable_guardrails: bool = False
+    """Context parallel size. Defaults to WORLD_SIZE set by torchrun."""
+    offload_diffusion_model: bool = False
+    """Offload diffusion model to CPU to save GPU memory. Default to False."""
+    offload_tokenizer: bool = False
+    """Offload tokenizer to CPU to save GPU memory. Default to False."""
+    offload_text_encoder: bool = False
+    """Offload text encoder to CPU to save GPU memory. Default to False."""
+    disable_guardrails: bool = True if SMOKE else False
     """Disable guardrails if this is set to True."""
     offload_guardrail_models: bool = True
     """Offload guardrail models to CPU to save GPU memory."""
-    keep_going: bool = False
-    """Keep going if an error occurs."""
+    keep_going: bool = True
+    """When running batch inference, keep going if an error occurs. If set to False, the batch will stop on the first error."""
     profile: bool = False
     """Run profiler and save report to output directory."""
 
@@ -252,25 +270,25 @@ Guidance = Annotated[int, pydantic.Field(ge=0, le=7)]
 class CommonInferenceArguments(pydantic.BaseModel):
     """Common inference arguments."""
 
-    model_config = pydantic.ConfigDict(extra="forbid", frozen=True)
+    model_config = pydantic.ConfigDict(extra="forbid", frozen=True, use_attribute_docstrings=True)
 
     # Required parameters
     name: str
     """Name of the sample."""
     prompt_path: ResolvedFilePath | None = pydantic.Field(None, init_var=True)
-    """Path to file containing the prompt."""
+    """Path to a .txt file containing the prompt. Only one of {prompt} or {prompt_path} should be provided."""
     prompt: str | None = None
-    """Text prompt for generation."""
+    """Text prompt for generation. Only one of {prompt} or {prompt_path} should be provided."""
 
     # Optional parameters
     negative_prompt: str | None = None
-    """Negative prompt."""
+    """Negative prompt - describing what you don't want in the generated video."""
 
     # Advanced parameters
     seed: int = 0
     """Seed value."""
     guidance: Guidance = 3
-    """Guidance value."""
+    """Range from 0 to 7: the higher the value, the closer the generated video adheres to the prompt."""
 
     @pydantic.model_validator(mode="before")
     @classmethod
@@ -285,6 +303,7 @@ class CommonInferenceArguments(pydantic.BaseModel):
             return data
         prompt_path: str | None = data.get("prompt_path")
         if prompt_path is not None:
+            # pyrefly: ignore  # annotation-mismatch
             prompt_path: Path = ResolvedFilePath(prompt_path)
             data["prompt"] = prompt_path.read_text().strip()
             return data
@@ -362,6 +381,7 @@ class SetupArguments(CommonSetupArguments):
     """Base model setup arguments."""
 
     # Override defaults
+    # pyrefly: ignore  # invalid-annotation
     model: get_model_literal([ModelVariant.BASE]) = DEFAULT_MODEL_KEY.name
 
 
@@ -390,19 +410,39 @@ class InferenceArguments(CommonInferenceArguments):
     inference_type: tyro.conf.EnumChoicesFromValues[InferenceType]
     """Inference type."""
     input_path: ResolvedFilePath | None = None
-    """Path to the input image/video."""
+    """Optional and ignored for TEXT2WORLD. Required path to the image if inference_type is IMAGE2WORLD or video if inference_type is VIDEO2WORLD."""
 
     # Advanced parameters
     resolution: str = "none"
     """Resolution of the video (H,W). Be default it will use model trained resolution. 9:16"""
     num_output_frames: pydantic.PositiveInt = 77
     """Number of video frames to generate"""
+    num_steps: pydantic.PositiveInt = 1 if SMOKE else 35
+    """Number of generation steps."""
+
+    # Autoregressive inference mode
+    enable_autoregressive: bool = False
+    """Enable autoregressive sliding window mode to generate videos longer than the model's native temporal capacity."""
+    chunk_size: int = pydantic.Field(
+        default=77, description="Number of frames the model generates in a single forward pass (chunk size)"
+    )
+    """Number of frames the model generates in a single forward pass (chunk size, cannot be greater than the model's native temporal capacity)."""
+    chunk_overlap: int = pydantic.Field(
+        default=1, description="Number of overlapping frames between consecutive chunks"
+    )
+    """Number of overlapping frames between consecutive chunks for temporal consistency. Default to 1 meaning image to video generation for the following chunk."""
 
     # Override defaults
+    # pyrefly: ignore  # bad-override
     prompt: str
+    "Text prompt for generation. Only one of {prompt} or {prompt_path} should be provided."
+    # pyrefly: ignore  # bad-override
     negative_prompt: str = DEFAULT_NEGATIVE_PROMPT
-    seed: int = 1
+    "Negative prompt - describing what you don't want in the generated video."
+    seed: int = 0
+    "Seed for generation randomness."
     guidance: Guidance = 7
+    """Range from 0 to 7: the higher the value, the closer the generated video adheres to the prompt."""
 
     @pydantic.model_validator(mode="after")
     def validate_input_path(self) -> Self:

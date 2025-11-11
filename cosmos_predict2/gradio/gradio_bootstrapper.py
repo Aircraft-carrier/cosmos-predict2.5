@@ -24,7 +24,7 @@ from cosmos_predict2.config import InferenceArguments
 from cosmos_predict2.gradio.model_config import ModelConfig
 from cosmos_predict2.gradio.multiview_worker import Multiview_Worker
 from cosmos_predict2.gradio.video2world_worker import Video2World_Worker
-from cosmos_predict2.multiview_config import MultiviewInferenceArguments
+from cosmos_predict2.multiview_config import MultiviewInferenceArgumentsWithInputPaths
 
 
 def create_video2world():
@@ -32,6 +32,7 @@ def create_video2world():
     global_env = DeploymentEnv()
     pipeline = Video2World_Worker(
         num_gpus=global_env.num_gpus,
+        disable_guardrails=global_env.disable_guardrails,
     )
     gc.collect()
     torch.cuda.empty_cache()
@@ -45,6 +46,7 @@ def create_multiview():
     assert global_env.num_gpus == 8, "Multiview currently requires 8 GPUs"
     pipeline = Multiview_Worker(
         num_gpus=global_env.num_gpus,
+        disable_guardrails=global_env.disable_guardrails,
     )
     gc.collect()
     torch.cuda.empty_cache()
@@ -58,13 +60,15 @@ def validate_v2w(kwargs):
 
 
 def validate_multiview(kwargs):
-    inference_args = MultiviewInferenceArguments(**kwargs)
+    inference_args = MultiviewInferenceArgumentsWithInputPaths(**kwargs)
     return inference_args.model_dump(mode="json")
 
 
 if __name__ == "__main__":
     model_cfg = ModelConfig()
     global_env = DeploymentEnv()
+
+    log.info(f"Starting Gradio app with deployment config: {global_env!s}")
 
     # configure server to use the correct worker in the worker procs
     factory_module = {
@@ -81,9 +85,6 @@ if __name__ == "__main__":
         "video2world": validate_v2w,
         "multiview": validate_multiview,
     }
-    global_env = DeploymentEnv()
-
-    log.info(f"Starting Gradio app with deployment config: {global_env!s}")
 
     app = GradioApp(
         num_gpus=global_env.num_gpus,
@@ -109,5 +110,5 @@ if __name__ == "__main__":
         share=False,
         debug=True,
         max_file_size="500MB",
-        allowed_paths=[global_env.output_dir, global_env.uploads_dir],
+        allowed_paths=global_env.allowed_paths,
     )

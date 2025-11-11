@@ -18,6 +18,11 @@ Run inference with example asset:
 python examples/action_conditioned.py -i assets/action_conditioned/basic/inference_params.json -o outputs/action_conditioned/basic
 ```
 
+For an explanation of all the available parameters run:
+```bash
+python examples/action_conditioned.py --help
+```
+
 ## Configuration
 
 The configuration is split into two parts:
@@ -86,4 +91,3 @@ Then specify it in your JSON config:
 <video src="https://github.com/user-attachments/assets/b3a86f38-12dd-49c9-bda8-93a6584c5699" width="500" alt="action_conditioned" controls></video>
 
 <video src="https://github.com/user-attachments/assets/8d598da3-6623-4cae-8980-64da81e3b54b" width="500" alt="action_conditioned" controls></video>
-
