@@ -13,6 +13,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import importlib
 from typing import Any, List
 
 import attrs
@@ -107,6 +108,11 @@ def make_config() -> Config:
     # TODO 这段代码的逻辑就是导入experiment下所有文件，注册各种配置名称，这样在train.py中就可以通过experiment=xxx来选择配置 <-- 感觉不需要这个功能，能否删除？
     # NOTE 不能，因为需要继承原来的训练配置，详见 cosmos-predict2.5/cosmos_predict2/experiments/base/cosmos_nemo_assets.py
     import_all_modules_from_package("cosmos_predict2._src.predict2.configs.video2world.experiment", reload=True)
+    try:
+        if importlib.util.find_spec("cosmos_predict2.experiments.internal") is not None:
+            import_all_modules_from_package("cosmos_predict2.experiments.internal", reload=True)
+    except ModuleNotFoundError:
+        pass  # Module or parent package doesn't exist
     # 遍历cosmos_predict2.experiments下所有目录，现在就是base，遍历cosmos_predict2.experiments.base下所有文件
     import_all_modules_from_package("cosmos_predict2.experiments", reload=True)
 
