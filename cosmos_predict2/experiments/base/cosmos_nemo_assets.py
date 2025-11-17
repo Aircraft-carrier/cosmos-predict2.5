@@ -53,8 +53,8 @@ dataloader_train_cosmos_nemo_assets = L(get_generic_dataloader)(
 predict2_video2world_training_2b_cosmos_nemo_assets = dict(
     defaults=[          # defaults 字段定义了继承关系
         # pretrian对应的是 Stage-c_pt_4-reason_embeddings-v1p1-Index-26-Size-2B-Res-720-Fps-16-Note-T2V_high_sigma_loss_reweighted_1_1_rectified_flow_only_resume2
-        # LINK cosmos-predict2.5/cosmos_predict2/_src/predict2/configs/video2world/experiment/reason_embeddings/model_2B_reason_1p1_rectified_flow.py:434
-        # 最终最上层的配置是 LINK cosmos-predict2.5/cosmos_predict2/_src/predict2/configs/video2world/experiment/reason_embeddings/model_2B_reason_1p1_rectified_flow.py:262
+        # LINK cosmos_predict2/_src/predict2/configs/video2world/experiment/reason_embeddings/model_2B_reason_1p1_rectified_flow.py:434
+        # 最终最上层的配置是 LINK cosmos_predict2/_src/predict2/configs/video2world/experiment/reason_embeddings/model_2B_reason_1p1_rectified_flow.py:262
         f"/experiment/{DEFAULT_CHECKPOINT.experiment}",     # 继承另一个实验配置
         {"override /data_train": "mock"},
         {"override /data_val": "mock"},
@@ -69,7 +69,7 @@ predict2_video2world_training_2b_cosmos_nemo_assets = dict(
     checkpoint=dict(
         save_iter=200,
         # pyrefly: ignore  # missing-attribute
-        # load_path=get_checkpoint_path(DEFAULT_CHECKPOINT.s3.uri),     # LINK cosmos-predict2.5/cosmos_predict2/_src/imaginaire/utils/checkpoint_db.py:165
+        # load_path=get_checkpoint_path(DEFAULT_CHECKPOINT.s3.uri),     # LINK cosmos_predict2/_src/imaginaire/utils/checkpoint_db.py:165
         load_path='/gemini/platform/public/embodiedAI/users/fanchenyou/models/nvidia/Cosmos-Predict2.5-2B/base/pre-trained/d20b7120-df3e-4911-919d-db6e08bad31c_ema_bf16.pt',
         load_from_object_store=dict(
             enabled=False,
@@ -91,18 +91,18 @@ predict2_video2world_training_2b_cosmos_nemo_assets = dict(
     trainer=dict(
         logging_iter=100,
         max_iter=1000,
-        callbacks=dict(                 # 具体的callback定义在父类配置中： LINK cosmos-predict2.5/cosmos_predict2/_src/predict2/configs/video2world/experiment/reason_embeddings/model_2B_reason_1p1_rectified_flow.py:274
-            heart_beat=dict(            # 下面三个属于basic LINK cosmos-predict2.5/cosmos_predict2/_src/predict2/configs/video2world/defaults/callbacks.py:28
-                save_s3=False,          # heart_beat: LINK cosmos-predict2.5/cosmos_predict2/_src/predict2/callbacks/heart_beat.py:29
+        callbacks=dict(                 # 具体的callback定义在父类配置中： LINK cosmos_predict2/_src/predict2/configs/video2world/experiment/reason_embeddings/model_2B_reason_1p1_rectified_flow.py:274
+            heart_beat=dict(            # 下面三个属于basic LINK cosmos_predict2/_src/predict2/configs/video2world/defaults/callbacks.py:28
+                save_s3=False,          # heart_beat: LINK cosmos_predict2/_src/predict2/callbacks/heart_beat.py:29
             ),
-            iter_speed=dict(            # LINK cosmos-predict2.5/cosmos_predict2/_src/predict2/callbacks/iter_speed.py:30
+            iter_speed=dict(            # LINK cosmos_predict2/_src/predict2/callbacks/iter_speed.py:30
                 hit_thres=200,
                 save_s3=False,
             ),
-            device_monitor=dict(        # LINK cosmos-predict2.5/cosmos_predict2/_src/predict2/callbacks/device_monitor.py:80
+            device_monitor=dict(        # LINK cosmos_predict2/_src/predict2/callbacks/device_monitor.py:80
                 save_s3=False,
             ),
-            every_n_sample_reg=dict(    # 下面两个属于viz_online_sampling  LINK cosmos-predict2.5/cosmos_predict2/_src/predict2/configs/video2world/defaults/callbacks.py:33
+            every_n_sample_reg=dict(    # 下面两个属于viz_online_sampling  LINK cosmos_predict2/_src/predict2/configs/video2world/defaults/callbacks.py:33
                 every_n=200,
                 save_s3=False,
             ),
@@ -110,14 +110,14 @@ predict2_video2world_training_2b_cosmos_nemo_assets = dict(
                 every_n=200,
                 save_s3=False,
             ),
-            wandb=dict(                 # LINK /gemini/platform/public/embodiedAI/users/fanchenyou/code/cosmos/cosmos-predict2.5/cosmos_predict2/_src/predict2/configs/common/defaults/callbacks.py:54
+            wandb=dict(                 # LINK cosmos_predict2/_src/predict2/configs/common/defaults/callbacks.py:54
                 save_s3=False,
             ),
-            # wandb_10x=dict(           # LINK cosmos-predict2.5/cosmos_predict2/_src/predict2/configs/common/defaults/callbacks.py:60
+            # wandb_10x=dict(           # LINK cosmos_predict2/_src/predict2/configs/common/defaults/callbacks.py:60
             #     save_s3=False,
             # ),
             dataloader_speed=dict(      # 这个属于cluster_speed 
-                save_s3=False,          # LINK /gemini/platform/public/embodiedAI/users/fanchenyou/code/cosmos/cosmos-predict2.5/cosmos_predict2/_src/predict2/configs/common/defaults/callbacks.py:67
+                save_s3=False,          # LINK cosmos_predict2/_src/predict2/configs/common/defaults/callbacks.py:67
             ),
         ),
     ),

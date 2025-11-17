@@ -69,12 +69,12 @@ def make_config() -> Config:
     )
 
     # Specifying values through instances of attrs
-    # JobConfig -> LINK cosmos-predict2.5/cosmos_predict2/_src/imaginaire/config.py:181
+    # JobConfig -> LINK cosmos_predict2/_src/imaginaire/config.py:185
     c.job.project = "cosmos_diffusion_v2"
     c.job.group = "debug"
     c.job.name = "delete_${now:%Y-%m-%d}_${now:%H-%M-%S}"
 
-    # TrainerConfig -> LINK cosmos-predict2.5/cosmos_predict2/_src/imaginaire/config.py:348
+    # TrainerConfig -> LINK cosmos_predict2/_src/imaginaire/config.py:354
     c.trainer.type = Trainer
     c.trainer.straggler_detection.enabled = False           # 禁用掉队检测（用于多GPU训练中检测慢节点）
     c.trainer.max_iter = 400_000
@@ -106,14 +106,13 @@ def make_config() -> Config:
     # 递归导入指定包下的所有 Python 模块，确保实验级配置被注册到 Hydra。
     # * 就是设置很多种可选的默认参数，根据experiment=xxx来选择
     # TODO 这段代码的逻辑就是导入experiment下所有文件，注册各种配置名称，这样在train.py中就可以通过experiment=xxx来选择配置 <-- 感觉不需要这个功能，能否删除？
-    # NOTE 不能，因为需要继承原来的训练配置，详见 cosmos-predict2.5/cosmos_predict2/experiments/base/cosmos_nemo_assets.py
+    # NOTE 不能，因为需要继承原来的训练配置，详见 cosmos_predict2/experiments/base/cosmos_nemo_assets.py
     import_all_modules_from_package("cosmos_predict2._src.predict2.configs.video2world.experiment", reload=True)
-    try:
-        if importlib.util.find_spec("cosmos_predict2.experiments.internal") is not None:
-            import_all_modules_from_package("cosmos_predict2.experiments.internal", reload=True)
-    except ModuleNotFoundError:
-        pass  # Module or parent package doesn't exist
-    # 遍历cosmos_predict2.experiments下所有目录，现在就是base，遍历cosmos_predict2.experiments.base下所有文件
+    # 遍历 cosmos_predict2.experiments 下的所有模块
     import_all_modules_from_package("cosmos_predict2.experiments", reload=True)
 
+    # 这些config会注册到Hydra ConfigStore中，可以通过如下方式查看
+    # from hydra.core.config_store import ConfigStore
+    # check_cs=ConfigStore.instance()
+    # check_cs.repo["experiment"]
     return c

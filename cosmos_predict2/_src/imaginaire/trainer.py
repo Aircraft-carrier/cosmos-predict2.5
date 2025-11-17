@@ -181,7 +181,7 @@ class ImaginaireTrainer:
             raise ValueError(f"Unknown distributed parallelism mode: {self.config.trainer.distributed_parallelism}")
 
         log.info("Starting training...")
-        # * self.callbacks 是一组callback，会调用这里来确定具体用的函数 LINK cosmos-predict2.5/cosmos_predict2/_src/imaginaire/utils/callback.py:96
+        # * self.callbacks 是一组callback，会调用这里来确定具体用的函数 LINK cosmos_predict2/_src/imaginaire/utils/callback.py:96
         self.callbacks.on_train_start(model, iteration=iteration)
         # Initial validation.
         if self.config.trainer.run_validation and iteration == 0:

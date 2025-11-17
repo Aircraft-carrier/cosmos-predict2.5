@@ -61,7 +61,8 @@ predict2_lora_training_2b_cosmos_nemo_assets = dict(
     checkpoint=dict(
         save_iter=200,
         # pyrefly: ignore  # missing-attribute
-        load_path=get_checkpoint_path(DEFAULT_CHECKPOINT.s3.uri),
+        # load_path=get_checkpoint_path(DEFAULT_CHECKPOINT.s3.uri),
+        load_path='/gemini/platform/public/embodiedAI/users/fanchenyou/models/nvidia/Cosmos-Predict2.5-2B/base/pre-trained/d20b7120-df3e-4911-919d-db6e08bad31c_ema_bf16.pt',
         load_from_object_store=dict(
             enabled=False,
         ),

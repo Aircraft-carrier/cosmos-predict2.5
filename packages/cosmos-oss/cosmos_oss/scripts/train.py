@@ -44,7 +44,7 @@ def launch(config: Config, args: argparse.Namespace) -> None:
 
     # Create the model and load the consolidated checkpoint if provided.
     # If the checkpoint is in DCP format, checkpoint loading will be handled by the DCP checkpointer.
-    # model: LINK cosmos-predict2.5/cosmos_predict2/_src/predict2/models/text2world_model_rectified_flow.py:106
+    # model: LINK cosmos_predict2/_src/predict2/models/text2world_model_rectified_flow.py:114
     if isinstance(config.checkpoint.load_path, str) and config.checkpoint.load_path.endswith(".pt"):
         model = create_model_from_consolidated_checkpoint_with_fsdp(config)
     else:
@@ -54,7 +54,7 @@ def launch(config: Config, args: argparse.Namespace) -> None:
     dataloader_train = instantiate(config.dataloader_train)
     dataloader_val = instantiate(config.dataloader_val)
     # Start training
-    # LINK cosmos-predict2.5/cosmos_predict2/_src/imaginaire/trainer.py:58
+    # LINK cosmos_predict2/_src/imaginaire/trainer.py:149
     trainer.train(
         model,
         dataloader_train,
@@ -90,8 +90,8 @@ For python-based LazyConfig, use "path.key=value".
     )
     args = parser.parse_args()
     config_module = get_config_module(args.config)
-    # Single view -> LINK cosmos-predict2.5/cosmos_predict2/_src/predict2/configs/video2world/config.py:61
-    # Multi view -> LINK cosmos-predict2.5/cosmos_predict2/_src/predict2_multiview/configs/vid2vid/config.py:27
+    # Single view -> LINK cosmos_predict2/_src/predict2/configs/video2world/config.py:62
+    # Multi view -> LINK cosmos_predict2/_src/predict2_multiview/configs/vid2vid/config.py:30
     config = importlib.import_module(config_module).make_config()
     # NOTE make_config 会把之前所有的实验配置都加载进来，override这里会选择当前实验具体用哪个配置
     overrides = list(args.opts)

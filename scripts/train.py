@@ -14,6 +14,7 @@
 # limitations under the License.
 
 if __name__ == "__main__":
+    # LINK: packages/cosmos-oss/cosmos_oss/scripts/train.py:65
     from cosmos_oss.scripts.train import main
 
     main()

@@ -24,8 +24,8 @@ SAMPLE_N_VIEWS = 5
 
 predict2_multiview_post_train_waymo = dict(
     # DEFAULT_CHECKPOINT.experiment 对应的是 buttercup_predict2p5_2b_7views_res720p_fps30_t8_from48kfps30mv_condprobs0442_joint_alpamayo1capnoviewprefix_allcapsviewprefix_29frames_nofps
-    # LINK cosmos-predict2.5/cosmos_predict2/_src/predict2_multiview/configs/vid2vid/experiment/buttercup/buttercup2p5_rectified_flow.py:469
-    # 最顶层的config为 LINK cosmos-predict2.5/cosmos_predict2/_src/predict2_multiview/configs/vid2vid/experiment/buttercup/buttercup2p5_rectified_flow.py:29
+    # LINK cosmos_predict2/_src/predict2_multiview/configs/vid2vid/experiment/buttercup/buttercup2p5_rectified_flow.py:469
+    # 最顶层的config为 LINK cosmos_predict2/_src/predict2_multiview/configs/vid2vid/experiment/buttercup/buttercup2p5_rectified_flow.py:29
     defaults=[
         DEFAULT_CHECKPOINT.experiment,
         {"override /data_train": "waymo"},

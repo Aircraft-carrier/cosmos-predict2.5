@@ -87,7 +87,8 @@ def override(config: Config, overrides: Optional[list[str]] = None) -> Config:
             )
         overrides = overrides[1:]
     # Use Hydra to handle overrides
-    # * overrides里就包含了experiment=xxx --> hydra会根据这个去加载配置(在compose函数中)，就是从预先加载好的配置中根据experiment的值选择当前实验具体用哪个配置
+    # * overrides里就包含了experiment=xxx --> hydra会根据这个去加载配置(在compose函数中)
+    # * 就是从Hydra ConfigStore中读取预先加载好的配置，根据experiment的值选择当前实验具体用哪个配置
     cs = ConfigStore.instance()
     cs.store(name="config", node=config_omegaconf)
     if not GlobalHydra().is_initialized():      # 走这条

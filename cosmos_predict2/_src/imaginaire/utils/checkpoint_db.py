@@ -45,7 +45,7 @@ class _CheckpointUri(pydantic.BaseModel):
     @cached_property
     def path(self) -> str:
         """Return S3 URI or local path."""
-        return self._download()     # LINK cosmos-predict2.5/cosmos_predict2/_src/imaginaire/utils/checkpoint_db.py:90
+        return self._download()     # LINK cosmos_predict2/_src/imaginaire/utils/checkpoint_db.py:90
 
 
 def is_s3_uri(uri: str) -> str:
@@ -166,10 +166,10 @@ class CheckpointConfig(pydantic.BaseModel):
         """Return S3 URI or local path."""
         if INTERNAL and self.s3 is not None:
             return self.s3.uri
-        if self.hf is None:     # LINK cosmos-predict2.5/cosmos_predict2/_src/imaginaire/utils/checkpoint_db.py:289
+        if self.hf is None:     # LINK cosmos_predict2/_src/imaginaire/utils/checkpoint_db.py:289
             raise ValueError(f"Checkpoint {self.name}({self.uuid}) is not available on Hugging Face.")
         log.info(f"Downloading checkpoint {self.name}({self.uuid})")
-        return self.hf.path     # LINK cosmos-predict2.5/cosmos_predict2/_src/imaginaire/utils/checkpoint_db.py:45
+        return self.hf.path     # LINK cosmos_predict2/_src/imaginaire/utils/checkpoint_db.py:45
 
 
 _CHECKPOINTS_BY_UUID: dict[str, CheckpointConfig] = {}
