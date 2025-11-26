@@ -30,10 +30,15 @@ DEFAULT_CHECKPOINT = MODEL_CHECKPOINTS[ModelKey(post_trained=False)]
 
 
 # Cosmos-NeMo-Assets video2world dataset and dataloader
+# example_video_dataset_cosmos_nemo_assets = L(VideoDataset)(
+#     dataset_dir="datasets/cosmos_nemo_assets",
+#     num_frames=93,
+#     video_size=(704, 1280),
+# )
 example_video_dataset_cosmos_nemo_assets = L(VideoDataset)(
     dataset_dir="datasets/cosmos_nemo_assets",
-    num_frames=93,
-    video_size=(704, 1280),
+    num_frames=17,
+    video_size=(256, 320),
 )
 
 dataloader_train_cosmos_nemo_assets = L(get_generic_dataloader)(
@@ -41,7 +46,7 @@ dataloader_train_cosmos_nemo_assets = L(get_generic_dataloader)(
     sampler=L(get_sampler)(dataset=example_video_dataset_cosmos_nemo_assets),
     batch_size=1,
     drop_last=True,
-    num_workers=4,
+    num_workers=0,
     pin_memory=True,
 )
 

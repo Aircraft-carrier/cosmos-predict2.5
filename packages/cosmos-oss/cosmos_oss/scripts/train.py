@@ -92,6 +92,8 @@ For python-based LazyConfig, use "path.key=value".
     config_module = get_config_module(args.config)
     # Single view -> LINK cosmos_predict2/_src/predict2/configs/video2world/config.py:62
     # Multi view -> LINK cosmos_predict2/_src/predict2_multiview/configs/vid2vid/config.py:30
+    # Action-conditioned -> LINK cosmos_predict2/_src/predict2/action/configs/action_conditioned/config.py:61
+    # *Our inpainting -> LINK cosmos_predict2/_src/predict2/inpainting/configs/pc_based_inpainting/config.py:65
     config = importlib.import_module(config_module).make_config()
     # NOTE make_config 会把之前所有的实验配置都加载进来，override这里会选择当前实验具体用哪个配置
     overrides = list(args.opts)

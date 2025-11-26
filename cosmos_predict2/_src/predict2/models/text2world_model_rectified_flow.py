@@ -350,6 +350,7 @@ class Text2WorldModelRectifiedFlow(ImaginaireModel):
             - The method handles different types of conditioning
             - The method also supports Kendall's loss
         """
+        # 这是一个计数器，统计总共见过多少 data_sample
         self._update_train_stats(data_batch)
 
         # Obtain text embeddings online
@@ -359,6 +360,12 @@ class Text2WorldModelRectifiedFlow(ImaginaireModel):
             data_batch["t5_text_mask"] = torch.ones(text_embeddings.shape[0], text_embeddings.shape[1], device="cuda")
 
         # Get the input data to noise and denoise~(image, video) and the corresponding conditioner.
+        # nemo model: LINK: cosmos_predict2/_src/predict2/models/video2world_model_rectified_flow.py:63
+        # *Inpainting model: LINK cosmos_predict2/_src/predict2/inpainting/models/inpainting_video2world_rectified_flow_model.py:66
+        # scale video from [0, 255] to [-1, 1] and encode with VAE
+        # x0_B_C_T_H_W: encoded video          
+        # condition: a dict, including fps, padding_mask, crossattn_emb (text embeddings)
+        # *Inpainting model also includes rendered_video and rendered_mask (but not encoded)
         _, x0_B_C_T_H_W, condition = self.get_data_and_condition(data_batch)
 
         # Sample pertubation noise levels and N(0, 1) noises
@@ -372,6 +379,7 @@ class Text2WorldModelRectifiedFlow(ImaginaireModel):
         )
         timesteps = self.rectified_flow.get_discrete_timestamp(t_B, self.tensor_kwargs_fp32)
 
+        # False
         if self.config.use_high_sigma_strategy:
             # Use high sigma strategy
             mask = torch.rand(timesteps.shape, device=timesteps.device) < self.config.high_sigma_ratio
@@ -398,6 +406,8 @@ class Text2WorldModelRectifiedFlow(ImaginaireModel):
         sigmas = rearrange(sigmas, "b -> b 1")
         xt_B_C_T_H_W, vt_B_C_T_H_W = self.rectified_flow.get_interpolation(epsilon_B_C_T_H_W, x0_B_C_T_H_W, sigmas)
 
+        # nemo model: LINK cosmos_predict2/_src/predict2/models/video2world_model_rectified_flow.py:80
+        # *Inpainting model: LINK cosmos_predict2/_src/predict2/inpainting/models/inpainting_video2world_rectified_flow_model.py:184
         vt_pred_B_C_T_H_W = self.denoise(
             noise=epsilon_B_C_T_H_W,
             xt_B_C_T_H_W=xt_B_C_T_H_W.to(**self.tensor_kwargs),
@@ -453,13 +463,13 @@ class Text2WorldModelRectifiedFlow(ImaginaireModel):
         return x0_B_C_T_H_W, condition, epsilon_B_C_T_H_W, sigma_B_T
 
     def _update_train_stats(self, data_batch: dict[str, torch.Tensor]) -> None:
-        is_image = self.is_image_batch(data_batch)
-        input_key = self.input_image_key if is_image else self.input_data_key
-        if isinstance(self.net, WeightTrainingStat):
+        is_image = self.is_image_batch(data_batch)                                  # False
+        input_key = self.input_image_key if is_image else self.input_data_key       # 'video'
+        if isinstance(self.net, WeightTrainingStat):                                # True
             if is_image:
                 self.net.accum_image_sample_counter += data_batch[input_key].shape[0] * self.data_parallel_size
             else:
-                self.net.accum_video_sample_counter += data_batch[input_key].shape[0] * self.data_parallel_size
+                self.net.accum_video_sample_counter += data_batch[input_key].shape[0] * self.data_parallel_size     # self.data_parallel_size=1
 
     # ------------------------ Sampling ------------------------
 
@@ -572,6 +582,7 @@ class Text2WorldModelRectifiedFlow(ImaginaireModel):
 
         timesteps = self.sample_scheduler.timesteps
 
+        # *Inpainting model: LINK cosmos_predict2/_src/predict2/inpainting/models/inpainting_video2world_rectified_flow_model.py:253
         velocity_fn = self.get_velocity_fn_from_batch(data_batch, guidance, is_negative_prompt=is_negative_prompt)
         if self.net.is_context_parallel_enabled:
             noise = broadcast_split_tensor(tensor=noise, seq_dim=2, process_group=self.get_context_parallel_group())
@@ -582,16 +593,22 @@ class Text2WorldModelRectifiedFlow(ImaginaireModel):
         else:
             timesteps_iter = tqdm.tqdm(timesteps, desc="Generating samples", total=len(timesteps))
         for _, t in enumerate(timesteps_iter):
-            latent_model_input = latents
+            latent_model_input = latents      # [b, c, t, h, w]
             timestep = [t]
 
-            timestep = torch.stack(timestep)
+            timestep = torch.stack(timestep)    # [1]
 
-            velocity_pred = velocity_fn(noise, latent_model_input, timestep.unsqueeze(0))
+            velocity_pred = velocity_fn(noise, latent_model_input, timestep.unsqueeze(0))   # [b, c, t, h, w]
+
+            # retrun is a tuple: LINK cosmos_predict2/_src/predict2/models/fm_solvers_unipc.py:652 
+            # NOTE: Below is the original Cosmos code which will generate same output in a batch
+            # temp_x0 = self.sample_scheduler.step(
+            #     velocity_pred.unsqueeze(0), t, latents[0].unsqueeze(0), return_dict=False, generator=seed_g
+            # )[0]   
             temp_x0 = self.sample_scheduler.step(
-                velocity_pred.unsqueeze(0), t, latents[0].unsqueeze(0), return_dict=False, generator=seed_g
-            )[0]
-            latents = temp_x0.squeeze(0)
+                velocity_pred.unsqueeze(0), t, latents.unsqueeze(0), return_dict=False, generator=seed_g
+            )[0]    
+            latents = temp_x0.squeeze(0)    # [1, b, c, t, h, w] -> [b, c, t, h, w]
 
         if self.net.is_context_parallel_enabled:
             latents = cat_outputs_cp(latents, seq_dim=2, cp_group=self.get_context_parallel_group())
@@ -689,14 +706,18 @@ class Text2WorldModelRectifiedFlow(ImaginaireModel):
     def get_data_and_condition(self, data_batch: dict[str, torch.Tensor]) -> Tuple[Tensor, Tensor, Text2WorldCondition]:
         self._normalize_video_databatch_inplace(data_batch)
         self._augment_image_dim_inplace(data_batch)
-        is_image_batch = self.is_image_batch(data_batch)
+        is_image_batch = self.is_image_batch(data_batch)        # False
 
         # Latent state
-        raw_state = data_batch[self.input_image_key if is_image_batch else self.input_data_key]
+        raw_state = data_batch[self.input_image_key if is_image_batch else self.input_data_key]     # [B, C, T, H, W] bf16 [-1, 1]
+        # LINK cosmos_predict2/_src/predict2/models/text2world_model_rectified_flow.py:876
         latent_state = self.encode(raw_state).contiguous().float()
 
         # Condition
+        # nemo model: LINK cosmos_predict2/_src/predict2/configs/video2world/defaults/conditioner.py:218
+        # *Inpainting model: LINK cosmos_predict2/_src/predict2/inpainting/configs/pc_based_inpainting/conditioner.py:284
         condition = self.conditioner(data_batch)
+        # 用于denoise函数中，在我们的setting下，这个condition.is_video是True，因为没有 image data做training
         condition = condition.edit_data_type(DataType.IMAGE if is_image_batch else DataType.VIDEO)
         return raw_state, latent_state, condition
 
@@ -731,13 +752,13 @@ class Text2WorldModelRectifiedFlow(ImaginaireModel):
                 assert torch.all((data_batch[input_key] >= -1.0001) & (data_batch[input_key] <= 1.0001)), (
                     f"Video data is not in the range [-1, 1]. get data range [{data_batch[input_key].min()}, {data_batch[input_key].max()}]"
                 )
-            else:
+            else:       # 走这个，默认没有在dataloader里做正则
                 assert data_batch[input_key].dtype == torch.uint8, "Video data is not in uint8 format."
                 data_batch[input_key] = data_batch[input_key].to(**self.tensor_kwargs) / 127.5 - 1.0
                 data_batch[IS_PREPROCESSED_KEY] = True
 
     def _augment_image_dim_inplace(self, data_batch: dict[str, Tensor], input_key: str = None) -> None:
-        input_key = self.input_image_key if input_key is None else input_key
+        input_key = self.input_image_key if input_key is None else input_key        # 'images' -> 所以这个函数目前是没用到的
         if input_key in data_batch:
             # Check if the data has already been augmented and avoid re-augmenting
             if IS_PREPROCESSED_KEY in data_batch and data_batch[IS_PREPROCESSED_KEY] is True:
@@ -864,6 +885,7 @@ class Text2WorldModelRectifiedFlow(ImaginaireModel):
 
     @torch.no_grad()
     def encode(self, state: torch.Tensor) -> torch.Tensor:
+        # LINK cosmos_predict2/_src/predict2/tokenizers/wan2pt1.py:998
         return self.tokenizer.encode(state)
 
     @torch.no_grad()

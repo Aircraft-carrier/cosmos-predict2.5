@@ -162,7 +162,7 @@ class ImaginaireTrainer:
         # Leaving this for backward compability for now, but we can think about moving this to model.on_train_start for all models.
         model = model.to("cuda", memory_format=self.config.trainer.memory_format)  # type: ignore
         model.on_train_start(self.config.trainer.memory_format)
-        import ipdb; ipdb.set_trace()
+
         # Initialize the optimizer, scheduler, and grad_scaler.
         self.callbacks.on_optimizer_init_start()
         optimizer, scheduler = model.init_optimizer_scheduler(self.config.optimizer, self.config.scheduler)
@@ -222,6 +222,7 @@ class ImaginaireTrainer:
                         model_ddp.train()
                     assert model_ddp.training, "model_ddp is not in training mode."
                     assert model.training, "model is not in training mode."
+                    # LINK cosmos_predict2/_src/imaginaire/trainer.py:295
                     output_batch, loss, grad_accum_iter = self.training_step(
                         model_ddp,
                         optimizer,
@@ -296,6 +297,7 @@ class ImaginaireTrainer:
                 with self.straggler_detector.profile_section(
                     "fwd", self.config.trainer.straggler_detection.analyze_forward
                 ):
+                    # all models: LINK: cosmos_predict2/_src/predict2/models/text2world_model_rectified_flow.py:354
                     output_batch, loss = model_ddp.training_step(data, iteration)
             self.callbacks.on_after_forward(iteration=iteration)
             self.callbacks.on_before_backward(model_ddp, loss, iteration=iteration)

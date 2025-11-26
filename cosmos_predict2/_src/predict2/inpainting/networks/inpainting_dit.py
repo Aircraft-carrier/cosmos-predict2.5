@@ -16,12 +16,15 @@
 from typing import List, Optional, Tuple
 
 import torch
+import torch.amp as amp
+from einops import rearrange
 
+from cosmos_predict2._src.imaginaire.utils import log
 from cosmos_predict2._src.predict2.conditioner import DataType
 from cosmos_predict2._src.predict2.networks.minimal_v4_dit import MiniTrainDIT
 
 
-class MinimalV1LVGDiT(MiniTrainDIT):
+class InpaintingConcatMinimalV1LVGDiT(MiniTrainDIT):
     def __init__(self, *args, timestep_scale: float = 1.0, **kwargs):
         assert "in_channels" in kwargs, "in_channels must be provided"
         kwargs["in_channels"] += 1  # Add 1 for the condition mask
@@ -33,6 +36,8 @@ class MinimalV1LVGDiT(MiniTrainDIT):
         x_B_C_T_H_W: torch.Tensor,
         timesteps_B_T: torch.Tensor,
         crossattn_emb: torch.Tensor,
+        inpainting_rendered_video_B_C_T_H_W: torch.Tensor, 
+        inpainting_rendered_mask_B_C_T_H_W: torch.Tensor,     
         condition_video_input_mask_B_C_T_H_W: Optional[torch.Tensor] = None,
         fps: Optional[torch.Tensor] = None,
         padding_mask: Optional[torch.Tensor] = None,
@@ -44,15 +49,17 @@ class MinimalV1LVGDiT(MiniTrainDIT):
         del kwargs
 
         if data_type == DataType.VIDEO:
-            x_B_C_T_H_W = torch.cat([x_B_C_T_H_W, condition_video_input_mask_B_C_T_H_W.type_as(x_B_C_T_H_W)], dim=1)
+            x_B_C_T_H_W = torch.cat([x_B_C_T_H_W, 
+                                    condition_video_input_mask_B_C_T_H_W.type_as(x_B_C_T_H_W),      # NOTE: we keep the original Cosmos mask since it is different from inpainting mask
+                                    inpainting_rendered_video_B_C_T_H_W.type_as(x_B_C_T_H_W),
+                                    inpainting_rendered_mask_B_C_T_H_W.type_as(x_B_C_T_H_W)], dim=1)
+            # [1, 37, 5, 32, 40] -> 16+1+16+4
         else:
-            B, _, T, H, W = x_B_C_T_H_W.shape
-            x_B_C_T_H_W = torch.cat(
-                [x_B_C_T_H_W, torch.zeros((B, 1, T, H, W), dtype=x_B_C_T_H_W.dtype, device=x_B_C_T_H_W.device)], dim=1
-            )
+            raise ValueError(f"Unsupported data type: {data_type}")
+
         # LINK cosmos_predict2/_src/predict2/networks/minimal_v4_dit.py:1578
         return super().forward(
-            x_B_C_T_H_W=x_B_C_T_H_W,        # [1, 17, 5, 32, 40]
+            x_B_C_T_H_W=x_B_C_T_H_W,        # [1, 37, 5, 32, 40]
             timesteps_B_T=timesteps_B_T * self.timestep_scale,
             crossattn_emb=crossattn_emb,
             fps=fps,
@@ -61,3 +68,4 @@ class MinimalV1LVGDiT(MiniTrainDIT):
             intermediate_feature_ids=intermediate_feature_ids,
             img_context_emb=img_context_emb,
         )
+

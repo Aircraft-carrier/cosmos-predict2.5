@@ -752,6 +752,7 @@ STAGE_C_PT_4_INDEX_1_SIZE_2B_RES_720_FPS16_4KCOOLDOWN_RF = LazyDict(
 
 # This is not for training, but a config to load the edm ckpt (e.g. the merged predict 2.5, or edm sft ckpt etc)
 # and add the needed overrides to load the edm ckpt and run rf inference
+# LINK: cosmos_predict2/_src/predict2/configs/video2world/experiment/reason_embeddings/model_2B_reason_1p1_rectified_flow.py:262
 STAGE_C_PT_4_INDEX_2_SIZE_2B_RES_720_FPS16_RECTIFIED_FLOW_WITH_EDM_CKPT = LazyDict(
     dict(
         defaults=[

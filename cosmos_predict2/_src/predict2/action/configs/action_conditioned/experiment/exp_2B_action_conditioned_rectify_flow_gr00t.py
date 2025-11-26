@@ -700,7 +700,8 @@ AC_CHUNK_MULTI_VIEW_2B_GR00T_GR1_CUSTOMIZED_13FRAME_FULL_16NODES = LazyDict(
 )
 
 default_experiment = DEFAULT_CHECKPOINT.experiment
-load_path = get_checkpoint_path(DEFAULT_CHECKPOINT.s3.uri)
+# load_path = get_checkpoint_path(DEFAULT_CHECKPOINT.s3.uri)
+load_path = "/gemini/platform/public/embodiedAI/users/fanchenyou/models/nvidia/Cosmos-Predict2.5-2B/base/post-trained/81edfebe-bd6a-4039-8c1d-737df1a790bf_ema_bf16.pt"
 ac_reason_embeddings_rectified_flow_2b_oss = LazyDict(
     dict(
         defaults=[

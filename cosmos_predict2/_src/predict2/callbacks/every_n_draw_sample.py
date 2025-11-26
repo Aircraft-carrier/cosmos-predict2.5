@@ -79,6 +79,8 @@ class EveryNDrawSample(EveryN):
         is_ema (bool, optional): whether the callback is run for ema model. Defaults to False.
         use_negative_prompt (bool, optional): whether to use negative prompt. Defaults to False.
         fps (int, optional): frames per second when saving the video. Defaults to 16.
+        save_videos (bool, optional): whether to save videos. Defaults to False.
+        save_images (bool, optional): whether to save images (3-frame preview). Defaults to True.
     """
 
     def __init__(
@@ -97,6 +99,8 @@ class EveryNDrawSample(EveryN):
         prompt_type: str = "t5_xxl",
         fps: int = 16,
         run_at_start: bool = False,
+        save_videos: bool = False,
+        save_images: bool = True,
     ):
         # s3: # files: min(n_sample_to_save, data instance)  # per file: min(batch_size, n_viz_sample)
         # wandb: 1 file, # per file: min(batch_size, n_viz_sample)
@@ -115,12 +119,18 @@ class EveryNDrawSample(EveryN):
         self.num_sampling_step = num_sampling_step
         self.rank = distributed.get_rank()
         self.fps = fps
+        self.save_videos = save_videos
+        self.save_images = save_images
 
     def on_train_start(self, model: ImaginaireModel, iteration: int = 0) -> None:
         config_job = self.config.job
         self.local_dir = f"{config_job.path_local}/{self.name}"
+        self.image_dir = f"{self.local_dir}/image"
+        self.video_dir = f"{self.local_dir}/video"
         if distributed.get_rank() == 0:
             os.makedirs(self.local_dir, exist_ok=True)
+            os.makedirs(self.image_dir, exist_ok=True)
+            os.makedirs(self.video_dir, exist_ok=True)
             log.info(f"Callback: local_dir: {self.local_dir}")
 
         if parallel_state.is_initialized():
@@ -256,12 +266,23 @@ class EveryNDrawSample(EveryN):
                 "sample_counter": sample_counter,
             }
             if self.do_x0_prediction:
-                info[f"{self.name}/{tag}_x0"] = wandb.Image(x0_img_fp, caption=f"{sample_counter}")
+                x0_image_path = x0_img_fp["image"] if isinstance(x0_img_fp, dict) else x0_img_fp
+                if self.save_images and x0_image_path:
+                    info[f"{self.name}/{tag}_x0"] = wandb.Image(x0_image_path, caption=f"{sample_counter}")
                 # convert mse_loss to a dict
                 mse_loss = mse_loss.tolist()
                 info.update({f"x0_pred_mse_{tag}/Sigma{sigmas[i]:0.5f}": mse_loss[i] for i in range(len(mse_loss))})
 
-            info[f"{self.name}/{tag}_sample"] = wandb.Image(sample_img_fp, caption=f"{sample_counter}")
+            # Log image (3-frame preview) if save_images is enabled
+            if self.save_images and isinstance(sample_img_fp, dict) and sample_img_fp.get("image"):
+                info[f"{self.name}/{tag}_sample"] = wandb.Image(sample_img_fp["image"], caption=f"{sample_counter}")
+
+            # Log video if save_videos is enabled
+            if self.save_videos and isinstance(sample_img_fp, dict) and sample_img_fp.get("video"):
+                info[f"{self.name}/{tag}_sample_video"] = wandb.Video(
+                    sample_img_fp["video"], fps=self.fps, caption=f"{sample_counter}"
+                )
+
             wandb.log(
                 info,
                 step=iteration,
@@ -279,7 +300,9 @@ class EveryNDrawSample(EveryN):
             data_batch["t5_text_embeddings"] = text_embeddings
             data_batch["t5_text_mask"] = torch.ones(text_embeddings.shape[0], text_embeddings.shape[1], device="cuda")
 
-        raw_data, x0, condition = model.get_data_and_condition(data_batch)
+        # Inpainting: LINK cosmos_predict2/_src/predict2/inpainting/models/inpainting_video2world_rectified_flow_model.py:55
+        # Here we only aim to get the video_latent, condition is not used as it will be generated for cfg in 'generate_samples_from_batch'
+        raw_data, x0, _ = model.get_data_and_condition(data_batch)
         if self.use_negative_prompt:
             batch_size = x0.shape[0]
             if self.negative_prompt_data["t5_text_embeddings"].shape != data_batch["t5_text_embeddings"].shape:
@@ -304,6 +327,7 @@ class EveryNDrawSample(EveryN):
 
         to_show = []
         for guidance in self.guidance:
+            # LINK cosmos_predict2/_src/predict2/models/text2world_model_rectified_flow.py:551
             sample = model.generate_samples_from_batch(
                 data_batch,
                 guidance=guidance,
@@ -313,17 +337,24 @@ class EveryNDrawSample(EveryN):
                 num_steps=self.num_sampling_step,
                 is_negative_prompt=True if self.use_negative_prompt else False,
             )
+
             if hasattr(model, "decode"):
                 sample = model.decode(sample)
+
             to_show.append(sample.float().cpu())
 
         to_show.append(raw_data.float().cpu())
+
+        # visulize render video
+        condition, _ = model.conditioner.get_condition_uncondition(data_batch)
+        vis_cond = condition.inpainting_rendered_video_B_C_T_H_W / 127.5 - 1.0
+        to_show.append(vis_cond.float().cpu())
 
         base_fp_wo_ext = f"{tag}_ReplicateID{self.data_parallel_id:04d}_Sample_Iter{iteration:09d}"
 
         batch_size = x0.shape[0]
         if is_tp_cp_pp_rank0():
-            local_path = self.run_save(to_show, batch_size, base_fp_wo_ext)
+            local_path = self.run_save(to_show, batch_size, base_fp_wo_ext)     # to_show is a list with 4 elements, each is [b, c, t, h, w]
             return local_path
         return None
 
@@ -340,36 +371,48 @@ class EveryNDrawSample(EveryN):
                 fps=self.fps,
             )
 
-        file_base_fp = f"{base_fp_wo_ext}_resize.jpg"
-        local_path = f"{self.local_dir}/{file_base_fp}"
+        image_base_fp = f"{base_fp_wo_ext}_resize.jpg"
+        video_base_fp = f"{base_fp_wo_ext}_video.mp4"
+        image_path = f"{self.image_dir}/{image_base_fp}"
+        video_path = f"{self.video_dir}/{video_base_fp}"
 
         if self.rank == 0 and wandb.run:
             if is_single_frame:  # image case
-                to_show = rearrange(
-                    to_show[:, :n_viz_sample],
-                    "n b c t h w -> t c (n h) (b w)",
-                )
-                image_grid = torchvision.utils.make_grid(to_show, nrow=1, padding=0, normalize=False)
-                # resize so that wandb can handle it
-                torchvision.utils.save_image(resize_image(image_grid, 1024), local_path, nrow=1, scale_each=True)
+                if self.save_images:
+                    to_show = rearrange(
+                        to_show[:, :n_viz_sample],
+                        "n b c t h w -> t c (n h) (b w)",
+                    )
+                    image_grid = torchvision.utils.make_grid(to_show, nrow=1, padding=0, normalize=False)
+                    # resize so that wandb can handle it
+                    torchvision.utils.save_image(resize_image(image_grid, 1024), image_path, nrow=1, scale_each=True)
+                return {"image": image_path if self.save_images else None, "video": None}
             else:
-                to_show = to_show[:, :n_viz_sample]  # [n, b, c, 3, h, w]
+                to_show = to_show[:, :n_viz_sample]  # [n, b, c, t, h, w]
 
-                # resize 3 frames frames so that we can display them on wandb
-                _T = to_show.shape[3]
-                three_frames_list = [0, _T // 2, _T - 1]
-                to_show = to_show[:, :, :, three_frames_list]
-                log_image_size = 1024
-                to_show = rearrange(
-                    to_show,
-                    "n b c t h w -> 1 c (n h) (b t w)",
-                )
+                if self.save_videos:
+                    # n categories concat in height, b batches concat in width
+                    video_tensor = rearrange(to_show, "n b c t h w -> c t (n h) (b w)")
+                    video_tensor = rearrange(video_tensor, "c t h w -> t h w c")
+                    video_tensor = (video_tensor * 255).clamp(0, 255).to(torch.uint8)
+                    torchvision.io.write_video(video_path, video_tensor, fps=self.fps)
 
-                # resize so that wandb can handle it
-                image_grid = torchvision.utils.make_grid(to_show, nrow=1, padding=0, normalize=False)
-                torchvision.utils.save_image(
-                    resize_image(image_grid, log_image_size), local_path, nrow=1, scale_each=True
-                )
+                if self.save_images:
+                    # resize 3 frames frames so that we can display them on wandb
+                    _T = to_show.shape[3]
+                    three_frames_list = [0, _T // 2, _T - 1]
+                    to_show_frames = to_show[:, :, :, three_frames_list]
+                    log_image_size = 1024
+                    to_show_frames = rearrange(
+                        to_show_frames,
+                        "n b c t h w -> 1 c (n h) (b t w)",
+                    )
 
-            return local_path
+                    # resize so that wandb can handle it
+                    image_grid = torchvision.utils.make_grid(to_show_frames, nrow=1, padding=0, normalize=False)
+                    torchvision.utils.save_image(
+                        resize_image(image_grid, log_image_size), image_path, nrow=1, scale_each=True
+                    )
+
+                return {"image": image_path if self.save_images else None, "video": video_path if self.save_videos else None}
         return None

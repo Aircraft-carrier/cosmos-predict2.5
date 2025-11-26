@@ -170,6 +170,21 @@ def load_model_state_dict_from_checkpoint(
 
                 local_state_dict = mapped_state_dict
 
+            if hasattr(model.config, "add_input_layer_channel") and model.config.add_input_layer_channel:
+                # NOTE: After introducing the render_video and render_mask, the input layer channel is 152 (38*4)
+                # The input will be constructed as [x_noisy, cosmos_mask, render_video, render_mask, padding_mask]
+                # So we need to initialize the middle 80 channels while load other 72 channels from checkpoint
+                input_linear_keys = [k for k in local_state_dict.keys() if 'net.x_embedder' in k]    # only 'net.x_embedder.proj.1.weight'
+                input_linear_weight_key = input_linear_keys[0]
+
+                input_linear_weight_from_checkpoint = local_state_dict[input_linear_weight_key]
+                model_input_linear_weight = model.state_dict()[input_linear_weight_key]
+
+                model_input_linear_weight[:, :68] = input_linear_weight_from_checkpoint[:, :68]     # first (16+1)*4 channels
+                model_input_linear_weight[:, -4:] = input_linear_weight_from_checkpoint[:, -4:]     # last 1*4 channels
+
+                local_state_dict[input_linear_weight_key] = model_input_linear_weight
+
             # `strict=False` is needed to avoid errors: `Skipping key ... introduced by TransformerEngine for FP8 in the checkpoint.`
             model.load_state_dict(local_state_dict, strict=False)
 

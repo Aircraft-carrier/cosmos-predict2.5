@@ -133,7 +133,7 @@ def register_training_and_val_data():
     # mock_image对应MOCK_DATA_IMAGE_ONLY_CONFIG，表示只加载图像的模拟数据
     # mock_video对应MOCK_DATA_VIDEO_ONLY_CONFIG，表示只加载视频的模拟数据
     # * 例子： python train.py ... -- data_train=mock_video
-    # * Hydra 会查找 data_train 配置组，选择名为 mock_video 的配置，将其应用到 package 指定的路径
+    # * Hydra 会查找 data_train 配置组，选择名为 mock_video 的配置，将其应用到 package 指定的路径，这里的 package 指定了这个config在最终得到的config字典中的位置
     cs.store(group="data_train", package="dataloader_train", name="mock", node=MOCK_DATA_INTERLEAVE_CONFIG)
     cs.store(group="data_train", package="dataloader_train", name="mock_image", node=MOCK_DATA_IMAGE_ONLY_CONFIG)
     cs.store(group="data_train", package="dataloader_train", name="mock_video", node=MOCK_DATA_VIDEO_ONLY_CONFIG)

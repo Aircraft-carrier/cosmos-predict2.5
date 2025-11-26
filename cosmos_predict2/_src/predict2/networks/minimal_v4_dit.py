@@ -1547,10 +1547,11 @@ class MiniTrainDIT(WeightTrainingStat):
         if self.concat_padding_mask:
             padding_mask = transforms.functional.resize(
                 padding_mask, list(x_B_C_T_H_W.shape[-2:]), interpolation=transforms.InterpolationMode.NEAREST
-            )
+            )       # [1, 1, 256, 320] -> [1, 1, 32, 40]
             x_B_C_T_H_W = torch.cat(
                 [x_B_C_T_H_W, padding_mask.unsqueeze(1).repeat(1, 1, x_B_C_T_H_W.shape[2], 1, 1)], dim=1
-            )
+            )       # [1, 17, 5, 32, 40] -> [1, 18, 5, 32, 40]
+        # LINK cosmos_predict2/_src/predict2/networks/minimal_v4_dit.py:891
         x_B_T_H_W_D = self.x_embedder(x_B_C_T_H_W)
 
         if self.extra_per_block_abs_pos_emb:
@@ -1576,14 +1577,14 @@ class MiniTrainDIT(WeightTrainingStat):
 
     def forward(
         self,
-        x_B_C_T_H_W: torch.Tensor,
-        timesteps_B_T: torch.Tensor,
-        crossattn_emb: torch.Tensor,
-        fps: Optional[torch.Tensor] = None,
-        padding_mask: Optional[torch.Tensor] = None,
-        data_type: Optional[DataType] = DataType.VIDEO,
-        intermediate_feature_ids: Optional[List[int]] = None,
-        img_context_emb: Optional[torch.Tensor] = None,
+        x_B_C_T_H_W: torch.Tensor,                                  # [1, 17, 5, 32, 40]
+        timesteps_B_T: torch.Tensor,                                # [1, 1]
+        crossattn_emb: torch.Tensor,                                # [1, 512, 100352]
+        fps: Optional[torch.Tensor] = None,                         # torch.Size([1]): [50.]
+        padding_mask: Optional[torch.Tensor] = None,                # [1, 1, 256, 320]: all 0
+        data_type: Optional[DataType] = DataType.VIDEO,             # <DataType.VIDEO: 'video'>
+        intermediate_feature_ids: Optional[List[int]] = None,       # None
+        img_context_emb: Optional[torch.Tensor] = None,             # None
     ) -> torch.Tensor | List[torch.Tensor] | Tuple[torch.Tensor, List[torch.Tensor]]:
         """
         Args:
@@ -1594,6 +1595,7 @@ class MiniTrainDIT(WeightTrainingStat):
         assert isinstance(data_type, DataType), (
             f"Expected DataType, got {type(data_type)}. We need discuss this flag later."
         )
+        # LINK cosmos_predict2/_src/predict2/networks/minimal_v4_dit.py:1517
         x_B_T_H_W_D, rope_emb_L_1_1_D, extra_pos_emb_B_T_H_W_D_or_T_H_W_B_D = self.prepare_embedded_sequence(
             x_B_C_T_H_W,
             fps=fps,
@@ -1635,6 +1637,7 @@ class MiniTrainDIT(WeightTrainingStat):
 
         intermediate_features_outputs = []
         for i, block in enumerate(self.blocks):
+            # LINK cosmos_predict2/_src/predict2/networks/minimal_v4_dit.py:1124
             x_B_T_H_W_D = block(
                 x_B_T_H_W_D,
                 t_embedding_B_T_D,

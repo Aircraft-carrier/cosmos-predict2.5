@@ -463,23 +463,49 @@ class GeneralConditioner(nn.Module, ABC):
             config file or make sure the embedders return a unique key for each output.
         """
         output = defaultdict(list)
-        if override_dropout_rate is None:
+        if override_dropout_rate is None:       # True
             override_dropout_rate = {}
 
         # make sure emb_name in override_dropout_rate is valid
         for emb_name in override_dropout_rate.keys():
             assert emb_name in self.embedders, f"invalid name found {emb_name}"
 
+        # nemo: 在这里定义的： LINK: cosmos_predict2/_src/predict2/configs/video2world/defaults/conditioner.py:231
+        # ModuleDict(
+        #   (fps): ReMapkey()
+        #   (padding_mask): ReMapkey()
+        #   (text): TextAttr()
+        #   (use_video_condition): BooleanFlag()
+        # )
+        # *Inpainting: LINK cosmos_predict2/_src/predict2/inpainting/configs/pc_based_inpainting/conditioner.py:309
+        # ModuleDict(
+        #     (fps): ReMapkey()
+        #     (padding_mask): ReMapkey()
+        #     (text): TextAttr()
+        #     (use_video_condition): BooleanFlag()
+        #     (rendered_video): ReMapkey()
+        #     (rendered_mask): ReMapkey()
+        #     (use_render_condition): BooleanFlag()
+        # )
         for emb_name, embedder in self.embedders.items():
             embedding_context = nullcontext if embedder.is_trainable else torch.no_grad
+            # embedder.input_key:
+            # fps -> 'fps' padding_mask -> 'padding_mask'
+            # text -> ['t5_text_embeddings']
+            # use_video_condition -> 'fps'
             with embedding_context():
-                if isinstance(embedder.input_key, str):
+                if isinstance(embedder.input_key, str): 
+                    # random_dropout_input: 
+                    # ReMapkey -> LINK cosmos_predict2/_src/predict2/conditioner.py:215
+                    # forward: LINK cosmos_predict2/_src/predict2/conditioner.py:359
                     emb_out = embedder(
-                        embedder.random_dropout_input(
+                        embedder.random_dropout_input(    
                             batch[embedder.input_key], override_dropout_rate.get(emb_name, None)
                         )
                     )
                 elif isinstance(embedder.input_key, (list, omegaconf.listconfig.ListConfig)):
+                    # TextAttr -> LINK cosmos_predict2/_src/predict2/conditioner.py:269
+                    # forward: LINK cosmos_predict2/_src/predict2/conditioner.py:257
                     emb_out = embedder(
                         *[
                             embedder.random_dropout_input(batch.get(k), override_dropout_rate.get(emb_name, None), k)
@@ -493,6 +519,17 @@ class GeneralConditioner(nn.Module, ABC):
             for k, v in emb_out.items():
                 output[k].append(v)
         # Concatenate the outputs
+        # nemo output -> ['fps': [tensor([50.])], 'padding_mask': [tensor.shape [1, 1, H, W]], 
+        # 'crossattn_emb' [tensor.shape [1, 512, 100352]], 'use_video_condition' [tensor([True]]]
+        # 每一个value都是一个list, 其中都只有一个元素
+
+        # *Inpainting output -> ['fps': [tensor([30., 30.])], 'padding_mask': [tensor.shape [2, 1, 240, 320]], 
+        # 'crossattn_emb' [tensor.shape [2, 512, 100352]], 'use_video_condition' [tensor([True]), torch.Size([1])]
+        # 'inpainting_rendered_video_B_C_T_H_W': [tensor.shape [2, 3, 17, 240, 320], torch.unit8], 
+        # 'inpainting_rendered_mask_B_C_T_H_W': [tensor.shape[2, 3, 17, 240, 320], torch.unit8], 
+        # 'use_render_condition': [tensor([False]), torch.Size([1])]
+
+        # 把列表变为tensor
         return {k: torch.cat(v, dim=self.KEY2DIM.get(k, -1)) for k, v in output.items()}
 
     def get_condition_uncondition(

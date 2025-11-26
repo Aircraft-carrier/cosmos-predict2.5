@@ -24,38 +24,35 @@ DEFAULT_CHECKPOINT = MODEL_CHECKPOINTS[ModelKey()]  # This uses post_trained=Tru
 
 
 """
-torchrun --nproc_per_node=1 --master_port=12341 -m scripts.train --config=cosmos_predict2/_src/predict2/action/configs/action_conditioned/config.py  -- experiment=ac_reason_embeddings_rectified_flow_2b_256_320
+torchrun --nproc_per_node=1 --master_port=12341 -m scripts.train --config=cosmos_predict2/_src/predict2/action/configs/action_conditioned/config.py  -- experiment=inpainting_240_320
 """
-ac_reason_embeddings_rectified_flow_2b_256_320 = LazyDict(
+inpainting_libero_49frame_240_320_stride1 = LazyDict(
     dict(
         # post-trained base 对应 LINK: cosmos_predict2/_src/predict2/configs/video2world/experiment/specialized_model/SFT_2B_RF.py:756
-        # *其继承自(因为这个是后导入的，会覆盖) LINK: cosmos_predict2/_src/predict2/action/configs/action_conditioned/experiment/exp_2B_action_conditioned_rectify_flow_gr00t.py:268
-        # 和非action的是一样的：LINK: cosmos_predict2/_src/predict2/configs/video2world/experiment/reason_embeddings/model_2B_reason_1p1_rectified_flow.py:262
+        # 其继承自 LINK: cosmos_predict2/_src/predict2/configs/video2world/experiment/reason_embeddings/model_2B_reason_1p1_rectified_flow.py:262
         defaults=[
             DEFAULT_CHECKPOINT.experiment,
-            {"override /model": "action_conditioned_video2world_fsdp_rectified_flow"},
-            {"override /net": "cosmos_v1_2B_action_conditioned"},
-            {"override /conditioner": "action_conditioned_video_conditioner"},
-            {"override /data_train": "bridge_13frame_480_640_train"},
-            {"override /data_val": "bridge_13frame_480_640_val"},
+            {"override /model": "inpainting_concat_video2world_fsdp_rectified_flow"},
+            {"override /net": "cosmos_v1_2B_inpainting_concat"},
+            {"override /conditioner": "inpainting_conditioner"},
+            {"override /data_train": "libero_49frame_240_320_stride1_train"},
+            {"override /data_val": "mock"},         # TODO: current cosmos does not support validation (See https://github.com/nvidia-cosmos/cosmos-predict2.5/issues/30)
             "_self_",
         ],
         job=dict(
-            project="cosmos_predict2_action_conditioned",
-            group="cosmos_predict_v2p5",
-            name="2b_bridge_action_conditioned",
+            project="cosmos_predict2p5_inpainting",
+            group="libero",
+            name="49frame_240_320_stride1",
         ),
         optimizer=dict(
             lr=2 ** (-14.5),  # 2**(-14.5) = 3.0517578125e-05
-            weight_decay=0.1,
+            weight_decay=0.001,
         ),
         checkpoint=dict(
-            save_iter=2_000,
+            save_iter=1_000,
             # pyrefly: ignore  # missing-attribute
             load_path='/gemini/platform/public/embodiedAI/users/fanchenyou/models/nvidia/Cosmos-Predict2.5-2B/base/post-trained/81edfebe-bd6a-4039-8c1d-737df1a790bf_ema_bf16.pt',
             # load_path=get_checkpoint_path(DEFAULT_CHECKPOINT.s3.uri),
-            load_training_state=False,
-            strict_resume=False,
             load_from_object_store=dict(
                 enabled=False,
             ),
@@ -67,16 +64,20 @@ ac_reason_embeddings_rectified_flow_2b_256_320 = LazyDict(
             straggler_detection=dict(enabled=False),
             callbacks=dict(
                 every_n_sample_reg=dict(
-                    every_n=5000,
+                    every_n=200_000,
+                    save_videos=True,
+                    save_images=False,
                     do_x0_prediction=False,
-                    guidance=[0, 3, 7],
+                    guidance=[3],
                     fps=16,
                     save_s3=False,
                 ),
                 every_n_sample_ema=dict(
-                    every_n=5000,
+                    every_n=200_000,
+                    save_videos=True,
+                    save_images=False,
                     do_x0_prediction=False,
-                    guidance=[0, 3, 7],
+                    guidance=[3],
                     fps=16,
                     save_s3=False,
                 ),
@@ -93,9 +94,9 @@ ac_reason_embeddings_rectified_flow_2b_256_320 = LazyDict(
                 wandb=dict(
                     save_s3=False,
                 ),
-                wandb_10x=dict(
-                    save_s3=False,
-                ),
+                # wandb_10x=dict(
+                #     save_s3=False,
+                # ),
                 dataloader_speed=dict(
                     save_s3=False,
                 ),
@@ -106,32 +107,63 @@ ac_reason_embeddings_rectified_flow_2b_256_320 = LazyDict(
         ),
         model=dict(
             config=dict(
-                # NOTE: this should be 1 for the action conditioned model
-                min_num_conditional_frames=1,
-                max_num_conditional_frames=1,
-                # overwrite the probs to disable random num of conditional frames
-                conditional_frames_probs=None,
-                state_t=1 + 12 // 4,
-                net=dict(
-                    action_dim=7,
-                    num_action_per_chunk=12,
+                tokenizer=dict(
+                    vae_pth="/gemini/platform/public/embodiedAI/users/fanchenyou/models/nvidia/Cosmos-Predict2.5-2B/tokenizer.pth",
                 ),
             ),
-        ),
+        ),        
         dataloader_train=dict(
-            batch_size=2,
+            batch_size=16,
             sampler=dict(
-                dataset=dict(fps_downsample_ratio=1, video_size=[256, 320]),
+                dataset=dict(num_frames=49, video_size=[240, 320]),
             ),
-            dataset=dict(fps_downsample_ratio=1, video_size=[256, 320]),
+            dataset=dict(num_frames=49, video_size=[240, 320]),
+            num_workers=16
         ),
     ),
     flags={"allow_objects": True},
 )
 
+CKPT_ITER = 27000
+inpainting_libero_eval = LazyDict(
+    dict(
+        defaults=[
+            "/experiment/inpainting_libero_49frame_240_320_stride1",
+        ],
+        job=dict(
+            project="cosmos_predict2p5_inpainting_eval",
+            name=f"eval_{CKPT_ITER}_iter_no_drop_render",
+        ),
+        trainer=dict(
+            callbacks=dict(
+                every_n_sample_reg=dict(
+                    save_videos=True,
+                    save_images=False,
+                    every_n=1,
+                    n_viz_sample=4,
+                    guidance=[0,3,7],
+                ),
+                every_n_sample_ema=dict(
+                    save_videos=True,
+                    save_images=False,
+                    every_n=1,
+                    n_viz_sample=4,
+                    guidance=[0,3,7],
+                ),
+            )
+        ),
+        checkpoint=dict(
+            load_path=f'/gemini/platform/public/embodiedAI/users/fanchenyou/code/cosmos/cosmos-predict2.5/logs/cosmos_predict2p5_inpainting/libero/49frame_240_320_stride1/checkpoints/iter_{CKPT_ITER:09d}',
+        ),
+        dataloader_train=dict(
+            batch_size=4
+        )
+    )
+)
+
 cs = ConfigStore.instance()
 
-for _item in [ac_reason_embeddings_rectified_flow_2b_256_320]:
+for _item in [inpainting_libero_49frame_240_320_stride1, inpainting_libero_eval]:
     # Get the experiment name from the global variable
     experiment_name = [name.lower() for name, value in globals().items() if value is _item][0]  # noqa: RUF015
 

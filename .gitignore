@@ -201,6 +201,9 @@ cython_debug/
 /outputs/
 /results/
 /tmp/
+/logs/
+/debug_*.mp4
+/cursor_analysis/
 
 !assets/**/*.png
 !assets/**/*.jpg

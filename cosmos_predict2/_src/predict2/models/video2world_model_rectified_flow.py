@@ -64,7 +64,9 @@ class Video2WorldModelRectifiedFlow(Text2WorldModelRectifiedFlow):
         self, data_batch: dict[str, torch.Tensor]
     ) -> Tuple[Tensor, Tensor, Video2WorldCondition]:
         # generate random number of conditional frames for training
+        # LINK cosmos_predict2/_src/predict2/models/text2world_model_rectified_flow.py:696
         raw_state, latent_state, condition = super().get_data_and_condition(data_batch)
+        # LINK cosmos_predict2/_src/predict2/configs/video2world/defaults/conditioner.py:45
         condition = condition.set_video_condition(
             gt_frames=latent_state.to(**self.tensor_kwargs),
             random_min_num_conditional_frames=self.config.min_num_conditional_frames,
@@ -72,6 +74,7 @@ class Video2WorldModelRectifiedFlow(Text2WorldModelRectifiedFlow):
             num_conditional_frames=data_batch.get(NUM_CONDITIONAL_FRAMES_KEY, None),
             conditional_frames_probs=self.config.conditional_frames_probs,
         )
+        # condition: ['_is_broadcasted', 'crossattn_emb', 'data_type', 'padding_mask', 'fps', 'use_video_condition', 'gt_frames', 'condition_video_input_mask_B_C_T_H_W']
         return raw_state, latent_state, condition
 
     def denoise(
@@ -122,6 +125,7 @@ class Video2WorldModelRectifiedFlow(Text2WorldModelRectifiedFlow):
                 )  # add dimension for batch
 
         # forward pass through the network
+        # LINK cosmos_predict2/_src/predict2/networks/minimal_v1_lvg_dit.py:31
         net_output_B_C_T_H_W = self.net(
             x_B_C_T_H_W=xt_B_C_T_H_W.to(**self.tensor_kwargs),  # Eq. 7 of https://arxiv.org/pdf/2206.00364.pdf
             timesteps_B_T=timesteps_B_T,  # Eq. 7 of https://arxiv.org/pdf/2206.00364.pdf
