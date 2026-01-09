@@ -215,3 +215,4 @@ cache/
 *.git
 *.datasets
 *.logs
+libero_asset/*.pt
