@@ -15,7 +15,10 @@ CUDA_VISIBLE_DEVICES=0 torchrun  --nproc_per_node=1 \
   -o outputs/cosmos_libero/ \
   --config-file "$CONFIG_PATH" \
   --checkpoint-path "$CHECKPOINT_PATH" \
-  --experiment "$EXPERIMENT_NAME"
+  --experiment "$EXPERIMENT_NAME" \
+  --disable-guardrails \
+  --offload-text-encoder
+  
 
 
 
