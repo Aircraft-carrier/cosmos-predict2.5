@@ -208,3 +208,10 @@ cython_debug/
 !assets/**/*.png
 !assets/**/*.jpg
 !assets/**/*.mp4
+checkpoints/
+*.bin
+*.pth
+cache/
+*.git
+*.datasets
+*.logs

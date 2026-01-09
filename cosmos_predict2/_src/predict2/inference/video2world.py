@@ -273,7 +273,8 @@ class Video2WorldInference:
         experiment_opts = []
         if not INTERNAL:
             experiment_opts.append("~data_train")
-        # LINK: cosmos_predict2/_src/predict2/utils/model_loader.py:57
+        # LINK: cosmos_predict2/_src/predict2/utils/model_loader.py:57 
+        # load config, Initial Model, load checkpoint, no set online text encoder
         model, config = load_model_from_checkpoint(
             experiment_name=self.experiment_name,
             s3_checkpoint_dir=self.ckpt_path,

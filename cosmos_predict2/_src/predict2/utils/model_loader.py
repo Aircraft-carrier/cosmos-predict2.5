@@ -53,9 +53,9 @@ def load_model_from_checkpoint(
     local_cache_dir: local cache directory, if None, do not cache
     override_cache: override cache, if True, override cache if local cache exists
     """
-    config_module = get_config_module(config_file)
-    config = importlib.import_module(config_module).make_config()
-    config = override(config, ["--", f"experiment={experiment_name}"] + experiment_opts)
+    config_module = get_config_module(config_file) # cosmos_predict2._src.predict2.action_parallel_predict.configs.action_cogeneration.config
+    config = importlib.import_module(config_module).make_config()                           # base config
+    config = override(config, ["--", f"experiment={experiment_name}"] + experiment_opts)    # 根据 实验配置 更正后的 config
 
     # Override checkpoint path if provided
     if s3_checkpoint_dir:

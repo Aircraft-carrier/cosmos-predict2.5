@@ -53,7 +53,7 @@ class Inference:
             args.output_dir.mkdir(parents=True, exist_ok=True)
             config_path = args.output_dir / "config.yaml"
             # pyrefly: ignore  # bad-argument-type
-            LazyConfig.save_yaml(self.pipe.config, config_path)
+            LazyConfig.save_yaml(self.pipe.config, config_path)  # save model config
             log.info(f"Saved config to {config_path}")
 
         self.guardrail_enabled = not args.disable_guardrails
@@ -75,7 +75,7 @@ class Inference:
         if SMOKE:
             samples = samples[:1]
 
-        sample_names = [sample.name for sample in samples]
+        sample_names = [sample.name for sample in samples]              # ['libero_lift1']
         log.info(f"Generating {len(samples)} samples: {sample_names}")
 
         output_paths: list[str] = []
