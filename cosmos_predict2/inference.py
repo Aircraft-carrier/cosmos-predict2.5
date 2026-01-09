@@ -36,15 +36,17 @@ class Inference:
         self.setup_args = args
         self.offload_diffusion_model = args.offload_diffusion_model
         self.offload_tokenizer = args.offload_tokenizer
-        self.offload_text_encoder = args.offload_text_encoder
+        self.offload_text_encoder = args.offload_text_encoder 
+        # LINK: cosmos_predict2/_src/predict2/inference/video2world.py:276
+        import ipdb;ipdb.set_trace()
         self.pipe = Video2WorldInference(
             # pyrefly: ignore  # bad-argument-type
             experiment_name=args.experiment,
             # pyrefly: ignore  # bad-argument-type
-            ckpt_path=args.checkpoint_path,
+            ckpt_path=args.checkpoint_path,         # base/post-trained/81edfebe-bd6a-4039-8c1d-737df1a790bf_ema_bf16.pt
             s3_credential_path="",
             # pyrefly: ignore  # bad-argument-type
-            context_parallel_size=args.context_parallel_size,
+            context_parallel_size=args.context_parallel_size, # cosmos_predict2/_src/predict2/action_parallel_predict/configs/action_cogeneration/config.py
             config_file=args.config_file,
         )
         if self.rank0:

@@ -169,7 +169,7 @@ class ImaginaireTrainer:
         grad_scaler = torch.amp.GradScaler("cuda", **self.config.trainer.grad_scaler_args)
         self.callbacks.on_optimizer_init_end()
         # Load the model checkpoint and get the starting iteration number.
-        iteration = self.checkpointer.load(model, optimizer, scheduler, grad_scaler)
+        iteration = self.checkpointer.load(model, optimizer, scheduler, grad_scaler) # load iteration checkpoint 
         grad_accum_iter = 0
         log.critical(f"Distributed parallelism mode: {self.config.trainer.distributed_parallelism}")
         if self.config.trainer.distributed_parallelism == "ddp":
@@ -181,7 +181,7 @@ class ImaginaireTrainer:
             raise ValueError(f"Unknown distributed parallelism mode: {self.config.trainer.distributed_parallelism}")
 
         log.info("Starting training...")
-        # * self.callbacks 是一组callback，会调用这里来确定具体用的函数 LINK cosmos_predict2/_src/imaginaire/utils/callback.py:96
+        # * self.callbacks 是一组callback，会调用这里来确定具体用的函数 # LINK cosmos_predict2/_src/imaginaire/utils/callback.py:96
         self.callbacks.on_train_start(model, iteration=iteration)
         # Initial validation.
         if self.config.trainer.run_validation and iteration == 0:
@@ -257,6 +257,7 @@ class ImaginaireTrainer:
                 if _end_training:
                     break
         log.success("Done with training.")
+        # LINK: cosmos-predict2.5/cosmos_predict2/_src/predict2/checkpointer/dcp.py:683
         if iteration % self.config.checkpoint.save_iter != 0:
             self.checkpointer.save(model, optimizer, scheduler, grad_scaler, iteration=iteration)
         self.callbacks.on_train_end(model, iteration=iteration)

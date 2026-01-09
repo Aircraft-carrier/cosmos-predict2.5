@@ -1132,7 +1132,6 @@ class Block(nn.Module):
     ) -> torch.Tensor:
         if extra_per_block_pos_emb is not None:
             x_B_T_H_W_D = x_B_T_H_W_D + extra_per_block_pos_emb
-
         with amp.autocast("cuda", enabled=self.use_wan_fp32_strategy, dtype=torch.float32):
             if self.use_adaln_lora:
                 shift_self_attn_B_T_D, scale_self_attn_B_T_D, gate_self_attn_B_T_D = (
@@ -1383,10 +1382,12 @@ class MiniTrainDIT(WeightTrainingStat):
         self.build_pos_embed()
         self.use_adaln_lora = use_adaln_lora
         self.adaln_lora_dim = adaln_lora_dim
+        
         self.t_embedder = nn.Sequential(
             Timesteps(model_channels),
             TimestepEmbedding(model_channels, model_channels, use_adaln_lora=use_adaln_lora),
         )
+        
         self.use_crossattn_projection = use_crossattn_projection
         self.crossattn_proj_in_channels = crossattn_proj_in_channels
         self.use_wan_fp32_strategy = use_wan_fp32_strategy

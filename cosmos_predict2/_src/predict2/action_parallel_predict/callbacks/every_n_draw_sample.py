@@ -13,6 +13,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import json
 import math
 import os
 from contextlib import nullcontext
@@ -35,7 +36,9 @@ from cosmos_predict2._src.imaginaire.utils import distributed, log, misc
 from cosmos_predict2._src.imaginaire.utils.easy_io import easy_io
 from cosmos_predict2._src.imaginaire.utils.parallel_state_helper import is_tp_cp_pp_rank0
 from cosmos_predict2._src.imaginaire.visualize.video import save_img_or_video
-
+from typing import List, Union, Dict, Any
+from cosmos_predict2._src.imaginaire.utils.context_parallel import broadcast_split_tensor
+from cosmos_predict2._src.predict2.action_parallel_predict.utils.utils import unnormalize_action
 
 def resize_image(image: torch.Tensor, size: int = 1024) -> torch.Tensor:
     """
@@ -127,6 +130,7 @@ class EveryNDrawSample(EveryN):
         self.local_dir = f"{config_job.path_local}/{self.name}"
         self.image_dir = f"{self.local_dir}/image"
         self.video_dir = f"{self.local_dir}/video"
+        self.action_dir = f"{self.local_dir}/action"
         if distributed.get_rank() == 0:
             os.makedirs(self.local_dir, exist_ok=True)
             os.makedirs(self.image_dir, exist_ok=True)
@@ -158,7 +162,8 @@ class EveryNDrawSample(EveryN):
         log.debug("starting data and condition model", rank0_only=False)
 
         raw_data, x0, condition = model.get_data_and_condition(data_batch)
-        _, condition, x0, _ = model.broadcast_split_for_model_parallelsim(None, condition, x0, None)
+        action_0 = data_batch['action']
+        x0, action_0, condition, _, _, _, _ = model.broadcast_split_for_model_parallelsim(x0, action_0, condition, None, None, None, None)
 
         log.debug("done data and condition model", rank0_only=False)
         batch_size = x0.shape[0]
@@ -172,15 +177,23 @@ class EveryNDrawSample(EveryN):
         generator = torch.Generator(device="cuda")
         generator.manual_seed(0)
         random_noise = torch.randn(*x0.shape, generator=generator, **model.tensor_kwargs)
+        random_action_noise = torch.randn(*action_0.shape, generator=generator, **model.tensor_kwargs)
+        
         _ones = torch.ones(batch_size, **model.tensor_kwargs)
         mse_loss_list = []
+        mse_action_loss_list = []
         for _, sigma in enumerate(sigmas):
             x_sigma = sigma * random_noise + x0
+            x_sigma_action = sigma * random_action_noise + action_0
             log.debug(f"starting denoising {sigma}", rank0_only=False)
-            sample = model.denoise(x_sigma, _ones * sigma, condition).x0
+            # TODO: debug x0 prediction with action
+            # sample = model.denoise(x_sigma, _ones * sigma, condition).x0
+            sample, action_sample = model.denoise(random_noise, x_sigma, x_sigma_action, _ones * sigma, condition).x0
             log.debug(f"done denoising {sigma}", rank0_only=False)
             mse_loss = distributed.dist_reduce_tensor(F.mse_loss(sample, x0))
+            action_loss = distributed.dist_reduce_tensor(F.mse_loss(action_sample, action_0))
             mse_loss_list.append(mse_loss)
+            mse_action_loss_list.append(action_loss)
 
             if hasattr(model, "decode"):
                 sample = model.decode(sample)
@@ -245,7 +258,7 @@ class EveryNDrawSample(EveryN):
                     )
 
             log.debug("entering, sample", rank0_only=False)
-            sample_img_fp = self.sample(
+            sample_img_fp, action_fp = self.sample(
                 trainer,
                 model,
                 data_batch,
@@ -254,7 +267,6 @@ class EveryNDrawSample(EveryN):
                 iteration,
             )
             log.debug("done, sample", rank0_only=False)
-
             log.debug("waiting for all ranks to finish", rank0_only=False)
             dist.barrier()
         if wandb.run:
@@ -281,7 +293,20 @@ class EveryNDrawSample(EveryN):
             if self.save_videos and isinstance(sample_img_fp, dict) and sample_img_fp.get("video"):
                 info[f"{self.name}/{tag}_sample_video"] = wandb.Video(
                     sample_img_fp["video"], fps=self.fps, caption=f"{sample_counter}"
-                )
+                ) # TODO: add format="mp4"
+                
+            if action_fp is not None and isinstance(action_fp, dict):
+                losses_cont = action_fp["metadata"]["losses_action_cont"]
+                avg_loss_cont = sum(losses_cont) / len(losses_cont) if losses_cont else 0.0
+                info["train/N_sample/action_mse_loss"] = avg_loss_cont
+                
+                losses_disc = action_fp["metadata"]["losses_action_disc"]
+                avg_loss_disc = sum(losses_disc) / len(losses_disc) if losses_disc else 0.0
+                info["train/N_sample/action_bce_loss"] = avg_loss_disc
+                
+                losses_video = action_fp["metadata"]["video_mse_loss"]
+                avg_loss_video = sum(losses_video) / len(losses_video) if losses_video else 0.0
+                info["train/N_sample/video_mse_loss"] = avg_loss_video
 
             wandb.log(
                 info,
@@ -300,9 +325,7 @@ class EveryNDrawSample(EveryN):
             data_batch["t5_text_embeddings"] = text_embeddings
             data_batch["t5_text_mask"] = torch.ones(text_embeddings.shape[0], text_embeddings.shape[1], device="cuda")
 
-        # Inpainting: LINK cosmos_predict2/_src/predict2/inpainting/models/inpainting_video2world_rectified_flow_model.py:55
-        # Here we only aim to get the video_latent, condition is not used as it will be generated for cfg in 'generate_samples_from_batch'
-        raw_data, x0, _ = model.get_data_and_condition(data_batch)
+        raw_data, x0, condition = model.get_data_and_condition(data_batch)
         if self.use_negative_prompt:
             batch_size = x0.shape[0]
             if self.negative_prompt_data["t5_text_embeddings"].shape != data_batch["t5_text_embeddings"].shape:
@@ -324,38 +347,77 @@ class EveryNDrawSample(EveryN):
                 f"{data_batch['neg_t5_text_embeddings'].shape} != {data_batch['t5_text_embeddings'].shape}"
             )
             data_batch["neg_t5_text_mask"] = data_batch["t5_text_mask"]
-
+        
+        
+        action_0 = data_batch['action']         # [B, T, D] : [1, 17, 7]
+        action_gt = data_batch['gt_action']     # unnormalized action
+        stats = data_batch['stats']
+        normalization_type = data_batch['normalization_type']
+        
+        x0, action_0, condition, _, _, _, _ = model.broadcast_split_for_model_parallelsim(x0, action_0, condition, None, None, None, None)
+        action_gt = broadcast_split_tensor(action_gt, 1, model.get_context_parallel_group())
+        
         to_show = []
-        for guidance in self.guidance:
-            # LINK cosmos_predict2/_src/predict2/models/text2world_model_rectified_flow.py:551
-            sample = model.generate_samples_from_batch(
+        all_action_samples = []
+        # For continuous and discrete action loss logging
+        action_cont_loss_list = []  # MSE
+        action_disc_loss_list = []  # Binary Cross Entropy
+        
+        mse_loss_list = []
+        for guidance in self.guidance: # [0, 3, 7]
+            # Action Gen: # LINK cosmos_predict2/_src/predict2/action_parallel_predict/models/action_generation_video2world_rectified_flow_model.py:365
+            sample, action_sample = model.generate_samples_from_batch(
                 data_batch,
                 guidance=guidance,
-                # make sure no mismatch and also works for cp
                 state_shape=x0.shape[1:],
                 n_sample=x0.shape[0],
                 num_steps=self.num_sampling_step,
                 is_negative_prompt=True if self.use_negative_prompt else False,
             )
-
+            # TODO: add action visualization later 
+            # real_action = data_batch['action']
+            # to_show_action = action_sample.float().cpu()
+            
             if hasattr(model, "decode"):
                 sample = model.decode(sample)
-
+            # ---- loss ----
+            action_sample = unnormalize_action(action_sample, stats, normalization_type[0])  # [B, T, D] : [1, 17, 7]
+            cont_pred = action_sample[..., :6]
+            cont_gt   = action_gt[..., :6] 
+            disc_pred_logits = action_sample[..., 6] 
+            disc_gt_labels   = action_gt[..., 6].float()
+            # Continuous part: MSE
+            cont_loss = F.mse_loss(cont_pred, cont_gt)
+            cont_loss_reduced = distributed.dist_reduce_tensor(cont_loss)
+            action_cont_loss_list.append(cont_loss_reduced)
+            # Discrete part: Binary Cross-Entropy with Logits
+            bce_loss = F.binary_cross_entropy_with_logits(disc_pred_logits, disc_gt_labels)
+            bce_loss_reduced = distributed.dist_reduce_tensor(bce_loss)
+            action_disc_loss_list.append(bce_loss_reduced)    
+            # Video-level MSE loss
+            mse_loss = distributed.dist_reduce_tensor(F.mse_loss(sample, raw_data))  # [B, C, T, H, W] : [1, 3, 17, 240, 320] -> tensor(0.0538)
+            mse_loss_list.append(mse_loss)
+            # --- save action samples to json ---
+            all_action_samples.append(action_sample.float().cpu().numpy().tolist())   
+            # ---- visualization ----
             to_show.append(sample.float().cpu())
 
         to_show.append(raw_data.float().cpu())
-
-        # visulize render video
-        condition, _ = model.conditioner.get_condition_uncondition(data_batch)
-        # vis_cond = condition.inpainting_rendered_video_B_C_T_H_W / 127.5 - 1.0
-        # to_show.append(vis_cond.float().cpu())
+        all_action_samples.append(action_gt.float().cpu().numpy().tolist())   
 
         base_fp_wo_ext = f"{tag}_ReplicateID{self.data_parallel_id:04d}_Sample_Iter{iteration:09d}"
-
         batch_size = x0.shape[0]
         if is_tp_cp_pp_rank0():
-            local_path = self.run_save(to_show, batch_size, base_fp_wo_ext)     # to_show is a list with 4 elements, each is [b, c, t, h, w]
-            return local_path
+            show_data = self.run_save(to_show, batch_size, base_fp_wo_ext)     # logs/task_name/EveryNDrawSample/image(video)/...
+            action_data = self.save_actions_to_json(
+                all_action_samples, 
+                action_cont_loss_list, 
+                action_disc_loss_list, 
+                mse_loss_list,
+                batch_size, 
+                base_fp_wo_ext
+            )
+            return show_data, action_data
         return None
 
     def run_save(self, to_show, batch_size, base_fp_wo_ext) -> Optional[str]:
@@ -416,3 +478,76 @@ class EveryNDrawSample(EveryN):
 
                 return {"image": image_path if self.save_images else None, "video": video_path if self.save_videos else None}
         return None
+
+    def save_actions_to_json(
+        self,
+        all_action_samples: List[List],  # list of [B, T, D] as nested lists
+        action_cont_loss_list: List[Union[float, torch.Tensor]],
+        action_disc_loss_list: List[Union[float, torch.Tensor]],
+        video_mse_loss_list: Union[float, torch.Tensor],
+        batch_size: int,
+        base_fp_wo_ext: str,
+    ) -> Dict[str, Any]:
+        """
+        Construct a structured dictionary containing action samples and their corresponding MSE losses.
+        Does NOT write to disk — returns the data as a Python dict for flexible downstream use.
+
+        Args:
+            all_action_samples: List where each element is a list of shape [B, T, D] (already .tolist()).
+                                The last element is the ground truth action.
+            mse_action_loss_list: List of MSE losses for each guidance scale (one per sample in all_action_samples[:-1]).
+            batch_size: Number of samples in the batch.
+            base_fp_wo_ext: Base file path without extension (kept for metadata consistency, though not used for I/O).
+
+        Returns:
+            Dict[str, Any]: A structured dictionary containing:
+                - metadata (batch size, guidance scales, losses)
+                - ground_truth actions
+                - generated_samples per guidance
+        """
+        # Convert losses to float (in case they are tensors or on GPU)
+        def _tensor_to_float_rounded(loss_list, decimals=4):
+            result = []
+            for loss in loss_list:
+                if isinstance(loss, torch.Tensor):
+                    loss = loss.item()
+                result.append(round(float(loss), decimals))
+            return result
+
+        action_cont_loss = _tensor_to_float_rounded(action_cont_loss_list)
+        action_disc_loss = _tensor_to_float_rounded(action_disc_loss_list)
+        video_mse_loss = _tensor_to_float_rounded(video_mse_loss_list)
+
+        # Separate generated samples and ground truth
+        generated_samples = all_action_samples[:-1]  # All but last
+        ground_truth = all_action_samples[-1]        # Last is GT
+
+        # Build structured output
+        output_data = {
+            "metadata": {
+                "batch_size": batch_size,
+                "num_guidance_scales": len(generated_samples),
+                "guidance_scales": list(getattr(self, 'guidance', list(range(len(generated_samples))))),
+                "losses_action_cont": action_cont_loss,
+                "losses_action_disc": action_disc_loss,
+                "video_mse_loss": video_mse_loss,
+            },
+            "ground_truth": ground_truth,  # shape: [B, T, D]
+            "generated_samples": []        # list of [B, T, D] for each guidance
+        }
+
+        for i, sample in enumerate(generated_samples):
+            output_data["generated_samples"].append({
+                "guidance_index": i,
+                "guidance_scale": output_data["metadata"]["guidance_scales"][i] if i < len(output_data["metadata"]["guidance_scales"]) else None,
+                "actions": sample  # already list of lists
+            })
+
+        # Ensure output directory exists
+        os.makedirs(self.action_dir, exist_ok=True)
+        action_base_fp = f"{base_fp_wo_ext}_action.json"
+        json_path = f"{self.action_dir}/{action_base_fp}"
+        with open(json_path, 'w') as f:
+            json.dump(output_data, f, indent=2)
+
+        return output_data

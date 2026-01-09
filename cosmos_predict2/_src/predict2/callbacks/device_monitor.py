@@ -138,8 +138,11 @@ class DeviceMonitor(EveryN):
             log.warning(f"Failed to get power draw with error {e}")
             power = 0
         util = torch.cuda.utilization()
-        clock = torch.cuda.clock_rate()
-
+        try:
+            clock = torch.cuda.clock_rate()
+        except (RuntimeError, AttributeError, Exception) as e:
+            clock = -1 
+    
         memory_info = pynvml.nvmlDeviceGetMemoryInfo(self.handle)
         nvml_used_gpu_mem_gb = memory_info.used / (1024**3)
         nvml_free_gpu_mem_gb = memory_info.free / (1024**3)

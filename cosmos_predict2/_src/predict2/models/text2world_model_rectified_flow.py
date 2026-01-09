@@ -235,7 +235,7 @@ class Text2WorldModelRectifiedFlow(ImaginaireModel):
             self._param_count = count_params(self.net, verbose=False)
 
             if config.ema.enabled:
-                self.net_ema = self.build_net()
+                self.net_ema = self.build_net() # create a new net for ema meta
                 self.net_ema.requires_grad_(False)
 
                 if self.fsdp_device_mesh:
@@ -358,7 +358,16 @@ class Text2WorldModelRectifiedFlow(ImaginaireModel):
             text_embeddings = self.text_encoder.compute_text_embeddings_online(data_batch, self.input_caption_key)
             data_batch["t5_text_embeddings"] = text_embeddings
             data_batch["t5_text_mask"] = torch.ones(text_embeddings.shape[0], text_embeddings.shape[1], device="cuda")
-
+        # else:
+        #     EMBEDDING_DIR = "/gemini/platform/public/embodiedAI/users/zsh/code/cosmos-predict2.5/datasets/cosmos_nemo_assets/token_embeddings"
+        #     import os
+        #     caption = data_batch['ai_caption'][0]
+        #     file_path = os.path.join(EMBEDDING_DIR, f"{caption}.pt")
+        #     emb = torch.load(file_path, map_location="cuda") 
+        #     text_embeddings = emb['t5_text_embeddings'].to(**self.tensor_kwargs)
+        #     data_batch["t5_text_embeddings"] = text_embeddings
+        #     data_batch["t5_text_mask"] = torch.ones(text_embeddings.shape[0], text_embeddings.shape[1], device="cuda")
+            
         # Get the input data to noise and denoise~(image, video) and the corresponding conditioner.
         # nemo model: LINK: cosmos_predict2/_src/predict2/models/video2world_model_rectified_flow.py:63
         # *Inpainting model: LINK cosmos_predict2/_src/predict2/inpainting/models/inpainting_video2world_rectified_flow_model.py:66

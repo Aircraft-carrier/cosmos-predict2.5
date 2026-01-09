@@ -13,8 +13,23 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import random
+import numpy as np
+import torch
+import os
+def set_seed(seed=42):
+    random.seed(seed)
+    np.random.seed(seed)
+    torch.manual_seed(seed)
+    if torch.cuda.is_available():
+        torch.cuda.manual_seed(seed)
+        torch.cuda.manual_seed_all(seed)  
+    torch.backends.cudnn.deterministic = True
+    torch.backends.cudnn.benchmark = False
+    os.environ['PYTHONHASHSEED'] = str(seed)
+    
 if __name__ == "__main__":
     # LINK: packages/cosmos-oss/cosmos_oss/scripts/train.py:65
     from cosmos_oss.scripts.train import main
-
+    # set_seed(42)
     main()

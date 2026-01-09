@@ -121,7 +121,7 @@ def load_model_state_dict_from_checkpoint(
 
     load_from_local = True
     local_s3_ckpt_fp = get_checkpoint_path(cur_key_ckpt_full_path)
-
+    # '/gemini/space/cosmos-predict/base/pre-trained/d20b7120-df3e-4911-919d-db6e08bad31c_ema_bf16.pt'
     if SMOKE:
         return model
 

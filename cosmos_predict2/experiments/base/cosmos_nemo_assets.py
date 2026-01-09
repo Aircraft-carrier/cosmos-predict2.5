@@ -38,7 +38,7 @@ DEFAULT_CHECKPOINT = MODEL_CHECKPOINTS[ModelKey(post_trained=False)]
 example_video_dataset_cosmos_nemo_assets = L(VideoDataset)(
     dataset_dir="datasets/cosmos_nemo_assets",
     num_frames=17,
-    video_size=(256, 320),
+    video_size=(64, 64),
 )
 
 dataloader_train_cosmos_nemo_assets = L(get_generic_dataloader)(
@@ -59,7 +59,7 @@ predict2_video2world_training_2b_cosmos_nemo_assets = dict(
     defaults=[          # defaults 字段定义了继承关系
         # pretrian对应的是 Stage-c_pt_4-reason_embeddings-v1p1-Index-26-Size-2B-Res-720-Fps-16-Note-T2V_high_sigma_loss_reweighted_1_1_rectified_flow_only_resume2
         # LINK cosmos_predict2/_src/predict2/configs/video2world/experiment/reason_embeddings/model_2B_reason_1p1_rectified_flow.py:434
-        # 最终最上层的配置是 LINK cosmos_predict2/_src/predict2/configs/video2world/experiment/reason_embeddings/model_2B_reason_1p1_rectified_flow.py:262
+        # 最终最上层的配置是 # LINK cosmos_predict2/_src/predict2/configs/video2world/experiment/reason_embeddings/model_2B_reason_1p1_rectified_flow.py:262
         f"/experiment/{DEFAULT_CHECKPOINT.experiment}",     # 继承另一个实验配置
         {"override /data_train": "mock"},
         {"override /data_val": "mock"},
@@ -75,7 +75,7 @@ predict2_video2world_training_2b_cosmos_nemo_assets = dict(
         save_iter=200,
         # pyrefly: ignore  # missing-attribute
         # load_path=get_checkpoint_path(DEFAULT_CHECKPOINT.s3.uri),     # LINK cosmos_predict2/_src/imaginaire/utils/checkpoint_db.py:165
-        load_path='/gemini/platform/public/embodiedAI/users/fanchenyou/models/nvidia/Cosmos-Predict2.5-2B/base/pre-trained/d20b7120-df3e-4911-919d-db6e08bad31c_ema_bf16.pt',
+        load_path='/gemini/space/cosmos-predict/base/pre-trained/d20b7120-df3e-4911-919d-db6e08bad31c_ema_bf16.pt',
         load_from_object_store=dict(
             enabled=False,
         ),
@@ -132,8 +132,11 @@ predict2_video2world_training_2b_cosmos_nemo_assets = dict(
     model=dict(
         config=dict(
             tokenizer=dict(
-                vae_pth="/gemini/platform/public/embodiedAI/users/fanchenyou/models/nvidia/Cosmos-Predict2.5-2B/tokenizer.pth",
+                vae_pth="/gemini/space/cosmos-predict/tokenizer.pth",
             ),
+            text_encoder_config=dict(
+                    compute_online=False, 
+                ),
         ),
     ),
 )

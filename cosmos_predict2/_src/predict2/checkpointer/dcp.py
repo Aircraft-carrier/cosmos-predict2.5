@@ -80,7 +80,7 @@ from cosmos_predict2._src.imaginaire.config import CheckpointConfig, JobConfig
 from cosmos_predict2._src.imaginaire.model import ImaginaireModel
 from cosmos_predict2._src.imaginaire.utils import callback, distributed, log, misc
 from cosmos_predict2._src.imaginaire.utils.easy_io import easy_io
-
+from torch.distributed.checkpoint import CheckpointException
 try:
     from torch.distributed.checkpoint.default_planner import DefaultLoadPlanner as _DefaultLoadPlanner
     from torch.distributed.checkpoint.default_planner import (
@@ -226,7 +226,14 @@ class ModelWrapper(Stateful):
             )
 
     def state_dict(self) -> Dict[str, Any]:
-        _state_dict = {k: v for sd in map(get_model_state_dict, self.model) for k, v in sd.items()}
+        # _state_dict = {k: v for sd in map(get_model_state_dict, self.model) for k, v in sd.items()}
+        _state_dict = {
+            k: v 
+            for sd in map(get_model_state_dict, self.model) 
+            for k, v in sd.items()
+            if 'ema' not in k
+        }
+
         if self.load_ema_to_reg:
             assert not self.model[0].config.ema.enabled, (
                 "EMA is enabled, can not load EMA weights to regular model weights"
@@ -505,7 +512,6 @@ class DistributedCheckpointer(AbstractCheckpointer):
         log.critical(f"Resuming ckpt {checkpoint_path} with keys: {resume_keys}")
 
         iteration = 0
-
         if checkpoint_path is not None:
             self._check_checkpoint_exists(checkpoint_path)
             for key in resume_keys:
@@ -530,37 +536,58 @@ class DistributedCheckpointer(AbstractCheckpointer):
                     )
                     _model_wrapper.load_state_dict(_state_dict)
                 elif key == "optim":
-                    log.info("- Loading the optimizer...")
-                    _optim_wrapper = OptimizerWrapper(model, optimizer)
-                    _state_dict = _optim_wrapper.state_dict()
-                    dcp.load(
-                        _state_dict,
-                        storage_reader=storage_reader,
-                        planner=load_planner,
-                    )
-                    _optim_wrapper.load_state_dict(_state_dict)
+                    metadata_path = os.path.join(cur_key_ckpt_full_path, ".metadata")
+                    if not os.path.exists(metadata_path):
+                        log.critical(f"Optimizer checkpoint missing (.metadata not found at {metadata_path}), skipping.")
+                        continue
+                    try:
+                        log.info("- Loading the optimizer...")
+                        _optim_wrapper = OptimizerWrapper(model, optimizer)
+                        _state_dict = _optim_wrapper.state_dict()
+                        dcp.load(
+                            _state_dict,
+                            storage_reader=storage_reader,
+                            planner=load_planner,
+                        )
+                        _optim_wrapper.load_state_dict(_state_dict)
+                    except (FileNotFoundError, RuntimeError, OSError, CheckpointException) as e:
+                        log.critical(f"Failed to load trainer state: {e}. Using default values.")
                 elif key == "scheduler":
-                    log.info("- Loading the scheduler...")
-                    _state_dict = scheduler.state_dict()
-                    dcp.load(
-                        _state_dict,
-                        storage_reader=storage_reader,
-                        planner=load_planner,
-                    )
-                    scheduler.load_state_dict(_state_dict)
+                    metadata_path = os.path.join(cur_key_ckpt_full_path, ".metadata")
+                    if not os.path.exists(metadata_path):
+                        log.critical(f"scheduler checkpoint missing (.metadata not found at {metadata_path}), skipping.")
+                        continue
+                    try:
+                        log.info("- Loading the scheduler...")
+                        _state_dict = scheduler.state_dict()
+                        dcp.load(
+                            _state_dict,
+                            storage_reader=storage_reader,
+                            planner=load_planner,
+                        )
+                        scheduler.load_state_dict(_state_dict)
+                    except (FileNotFoundError, RuntimeError, OSError, CheckpointException) as e:
+                        log.critical(f"Failed to load trainer state: {e}. Using default values.")
                 elif key == "trainer":
-                    log.info("- Loading the trainer...")
-                    _state_dict = {
-                        "grad_scaler": grad_scaler.state_dict(),
-                        "iteration": iteration,
-                    }
-                    dcp.load(
-                        _state_dict,
-                        storage_reader=storage_reader,
-                        planner=load_planner,
-                    )
-                    grad_scaler.load_state_dict(_state_dict["grad_scaler"])
-                    iteration = _state_dict["iteration"]
+                    metadata_path = os.path.join(cur_key_ckpt_full_path, ".metadata")
+                    if not os.path.exists(metadata_path):
+                        log.critical(f"trainer checkpoint missing (.metadata not found at {metadata_path}), skipping.")
+                        continue
+                    try:
+                        log.info("- Loading the trainer...")
+                        _state_dict = {
+                            "grad_scaler": grad_scaler.state_dict(),
+                            "iteration": iteration,
+                        }
+                        dcp.load(
+                            _state_dict,
+                            storage_reader=storage_reader,
+                            planner=load_planner,
+                        )
+                        grad_scaler.load_state_dict(_state_dict["grad_scaler"])
+                        iteration = _state_dict["iteration"]
+                    except (FileNotFoundError, RuntimeError, OSError, CheckpointException) as e:
+                        log.critical(f"Failed to load trainer state: {e}. Using default values.")
                 else:
                     raise ValueError(f"Invalid key: {key}. not support to resume.")
             if self.callbacks is not None:
@@ -651,12 +678,15 @@ class DistributedCheckpointer(AbstractCheckpointer):
     def save_state_dict_worker(self, to_save_dict: Dict[str, Tuple[Any, str]], checkpoint_file: str) -> None:
         for k, (v, full_checkpoint_path) in to_save_dict.items():
             storage_writer = self.get_storage_writer(full_checkpoint_path)
-            dcp.save(
-                v,
-                storage_writer=storage_writer,
-                planner=DefaultSavePlanner(dedup_save_to_lowest_rank=True),
-            )
-
+            try:
+                dcp.save(
+                    v,
+                    storage_writer=storage_writer,
+                    planner=DefaultSavePlanner(dedup_save_to_lowest_rank=True),
+                )
+            except Exception as e:
+                log.critical(f"Failed to save distributed checkpoint to {full_checkpoint_path}: {e}", exc_info=True)
+                    
         if distributed.is_rank0():
             print(f"Saving last checkpoint file {checkpoint_file}")
             self._write_latest_checkpoint_file(checkpoint_file)
@@ -680,7 +710,7 @@ class DistributedCheckpointer(AbstractCheckpointer):
             grad_scaler (torch.amp.GradScaler): The gradient scaler (for mixed precision training).
             iteration (int): Current iteration number.
         """
-        if self.async_mode == AsyncMode.ASYNC_WITH_PINNED_MEM:
+        if self.async_mode == AsyncMode.ASYNC_WITH_PINNED_MEM: # self.async_mode = "disabled"
             self.get_previous_checkpoint_results(wait_for=0)
 
         if self.callbacks is not None:
@@ -689,12 +719,12 @@ class DistributedCheckpointer(AbstractCheckpointer):
         checkpoint_file = f"iter_{iteration:09}"
         to_save_dict = {
             "model": ModelWrapper(model).state_dict(),
-            "optim": OptimizerWrapper(model, optimizer).state_dict(),
             "scheduler": scheduler.state_dict(),
             "trainer": {
                 "grad_scaler": grad_scaler.state_dict(),
                 "iteration": iteration,
             },
+            "optim": OptimizerWrapper(model, optimizer).state_dict(),
         }
         for k in to_save_dict.keys():
             output_dirname = os.path.join(self.save_dirname, f"iter_{iteration:09}/{k}")
@@ -708,7 +738,7 @@ class DistributedCheckpointer(AbstractCheckpointer):
         else:
             start_time = time.monotonic()
             try:
-                self.save_state_dict_worker(to_save_dict, checkpoint_file)
+                self.save_state_dict_worker(to_save_dict, checkpoint_file) # This fork
             finally:
                 if self.callbacks is not None:
                     self.callbacks.on_save_checkpoint_success(

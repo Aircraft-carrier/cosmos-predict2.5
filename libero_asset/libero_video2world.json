@@ -1,0 +1,8 @@
+{
+  "inference_type": "video2world",
+  "name": "libero_lift1",
+  "guidance": 0,
+  "prompt": "put the white mug on the left plate and put the yellow and white mug on the right plate",
+  "input_path": "libero_lift1.mp4",
+  "prompt_path": "libero_lift1.txt"
+}
