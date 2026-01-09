@@ -48,7 +48,7 @@ ac_gen_reason_embeddings_rectified_flow_2b_256_320 = LazyDict(
             weight_decay=0.1,
         ),
         checkpoint=dict(
-            save_iter=2000,
+            save_iter=500,
             load_path='/gemini/space/cosmos-predict/base/pre-trained/d20b7120-df3e-4911-919d-db6e08bad31c_ema_bf16.pt',
             load_from_object_store=dict(
                 enabled=False,

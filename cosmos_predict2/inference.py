@@ -38,7 +38,7 @@ class Inference:
         self.offload_tokenizer = args.offload_tokenizer
         self.offload_text_encoder = args.offload_text_encoder 
         # LINK: cosmos_predict2/_src/predict2/inference/video2world.py:276
-        import ipdb;ipdb.set_trace()
+
         self.pipe = Video2WorldInference(
             # pyrefly: ignore  # bad-argument-type
             experiment_name=args.experiment,

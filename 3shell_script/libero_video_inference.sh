@@ -3,8 +3,10 @@ export IMAGINAIRE_OUTPUT_ROOT=/gemini/platform/public/embodiedAI/users/zsh/code/
 cd /gemini/platform/public/embodiedAI/users/zsh/code/cosmos-predict2.5
 export PYTHONPATH=$PWD  
 
-CONFIG_PATH="cosmos_predict2/_src/predict2/action_parallel_predict/configs/action_cogeneration/config.py"
-EXPERIMENT_NAME="reason_embeddings_rectified_flow_libero"
+CONFIG_PATH="cosmos_predict2/_src/predict2/configs/video2world/config.py" 
+# "cosmos_predict2/_src/predict2/action_parallel_predict/configs/action_cogeneration/config.py"
+EXPERIMENT_NAME="predict2_video2world_training_2b_cosmos_nemo_assets" 
+# "reason_embeddings_rectified_flow_libero"
 CHECKPOINT_PATH="/gemini/space/cosmos-predict/base/post-trained/81edfebe-bd6a-4039-8c1d-737df1a790bf_ema_bf16.pt"
 
 # /gemini/space/cosmos-predict/base/pre-trained/d20b7120-df3e-4911-919d-db6e08bad31c_ema_bf16.pt
@@ -18,6 +20,7 @@ CUDA_VISIBLE_DEVICES=0 torchrun  --nproc_per_node=1 \
   --experiment "$EXPERIMENT_NAME" \
   --disable-guardrails \
   --offload-text-encoder
+
   
 
 

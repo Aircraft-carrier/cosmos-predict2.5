@@ -372,9 +372,13 @@ class Video2WorldInference:
                     input_caption_key="ai_caption",
                 )
         else:
-            data_batch["t5_text_embeddings"] = get_text_embedding(prompt)
+            t5_text_embeddings = torch.load(os.path.join('libero_asset', 't5_text_embeddings.pt'))
+            data_batch["t5_text_embeddings"] = t5_text_embeddings.unsqueeze(0) 
             if use_neg_prompt:
-                data_batch["neg_t5_text_embeddings"] = get_text_embedding(negative_prompt)
+                data_batch["neg_t5_text_embeddings"] = t5_text_embeddings.unsqueeze(0) 
+            # data_batch["t5_text_embeddings"] = get_text_embedding(prompt)
+            # if use_neg_prompt:
+            #     data_batch["neg_t5_text_embeddings"] = get_text_embedding(negative_prompt)
 
         # Move tensors to GPU and convert to bfloat16 if they are floating point
         for k, v in data_batch.items():
@@ -392,7 +396,7 @@ class Video2WorldInference:
         num_latent_conditional_frames: int = 1,
         num_input_video: int = 1,
         num_output_video: int = 1,
-        resolution: str = "192,320",
+        resolution: str = "248,320",
         seed: int = 1,
         negative_prompt: str = _DEFAULT_NEGATIVE_PROMPT,
         camera: torch.Tensor | None = None,
@@ -414,7 +418,7 @@ class Video2WorldInference:
             guidance: Classifier-free guidance scale. Defaults to 7.
             num_video_frames: Number of video frames to generate. Defaults to 77.
             num_latent_conditional_frames : Number of latent conditional frames. Defaults to 1.
-            resolution: Target video resolution in "H,W" format. Defaults to "192,320".
+            resolution: Target video resolution in "H,W" format. Defaults to "248,320".
             seed: Random seed for reproducibility. Defaults to 1.
             negative_prompt: Custom negative prompt. Defaults to the predefined default negative prompt.
             camera: Target camera extrinsics and intrinsics for the K output videos. Must be provided if model is camera conditioned.

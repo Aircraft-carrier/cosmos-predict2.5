@@ -89,6 +89,7 @@ if __name__ == "__main__":
 
     except Exception as e:
         handle_tyro_exception(e)
+    
     # pyrefly: ignore  # unbound-name
     main(args)
 

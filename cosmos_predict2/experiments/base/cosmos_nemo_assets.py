@@ -135,8 +135,8 @@ predict2_video2world_training_2b_cosmos_nemo_assets = dict(
                 vae_pth="/gemini/space/cosmos-predict/tokenizer.pth",
             ),
             text_encoder_config=dict(
-                    compute_online=False, 
-                ),
+                compute_online=False, 
+            ),
         ),
     ),
 )
